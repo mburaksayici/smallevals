@@ -29,6 +29,7 @@ dependencies = [
     "weaviate-client>=4.18.1",
     "pytest>=9.0.1",
     "testcontainers>=4.13.3",
+    "hf-transfer>=0.1.9",
 ]
 
 [project.optional-dependencies]
