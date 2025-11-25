@@ -1,0 +1,89 @@
+[project]
+name = "evalvd"
+version = "0.1.0"
+description = "Small Language Models Evaluation Suite for RAG Systems"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "datasets==3.6",
+    "jupyter>=1.1.1",
+    "llama-cpp-python>=0.3.16",
+    "notebook>=7.5.0",
+    "openai>=2.8.1",
+    "pip>=25.3",
+    "python-dotenv>=1.2.1",
+    "tqdm>=4.67.1",
+    "transformers>=4.30.0",
+    "torch>=2.0.0",
+    "llama-index-core>=0.10.0",
+    "chromadb>=1.3.5",
+    "sentence-transformers>=5.1.2",
+    "peft>=0.18.0",
+    "streamlit>=1.28.0",
+    "pandas>=2.0.0",
+    "plotly>=5.0.0",
+    "dash>=2.14.0",
+    "dash-bootstrap-components>=1.5.0",
+    "pymilvus>=2.6.3",
+    "weaviate>=0.1.2",
+    "weaviate-client>=4.18.1",
+    "pytest>=9.0.1",
+    "testcontainers>=4.13.3",
+]
+
+[project.optional-dependencies]
+vectordb = [
+    "chromadb>=0.4.0",
+    "sentence-transformers>=2.2.0",
+]
+all = [
+    "chromadb>=0.4.0",
+    "sentence-transformers>=2.2.0",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "testcontainers[weaviate]>=4.0.0",
+    "pyarrow>=10.0.0",  # For parquet file reading
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "testcontainers[weaviate]>=4.0.0",
+    "pyarrow>=10.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "unit: marks tests as unit tests",
+]
+
+[tool.coverage.run]
+source = ["evalvd"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[project.scripts]
+dash = "evalvd.ui_dash.app:main"
