@@ -53,7 +53,7 @@ pytest tests/test_metrics.py::TestBasicMetrics::test_precision_at_k
 ### Run with Coverage
 
 ```bash
-pytest --cov=evalvd --cov-report=html --cov-report=term
+pytest --cov=smallevals --cov-report=html --cov-report=term
 ```
 
 This will:

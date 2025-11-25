@@ -1,7 +1,7 @@
 """Utility functions."""
 
-from evalvd.utils.json_parser import parse_json_response
-from evalvd.utils.versioning import (
+from smallevals.utils.json_parser import parse_json_response
+from smallevals.utils.versioning import (
     create_version,
     list_versions,
     load_version,

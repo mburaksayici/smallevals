@@ -5,11 +5,11 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Union, Callable
 from tqdm import tqdm
 
-from evalvd.vdb_integrations.base import BaseVDBConnection
-from evalvd.generation.qa_generator import QAGenerator
-from evalvd.eval.metrics import calculate_retrieval_metrics_full
-from evalvd.exceptions import ValidationError
-from evalvd.utils.logger import logger
+from smallevals.vdb_integrations.base import BaseVDBConnection
+from smallevals.generation.qa_generator import QAGenerator
+from smallevals.eval.metrics import calculate_retrieval_metrics_full
+from smallevals.exceptions import ValidationError
+from smallevals.utils.logger import logger
 
 
 def _validate_generate_qa_params(

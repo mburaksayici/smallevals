@@ -25,7 +25,7 @@ from pathlib import Path
 current_dir = Path(__file__).resolve() 
 # 2. Get the parent directory (tests/)
 parent_dir = current_dir.parent
-# 3. Get the project root (the directory containing tests/ and evalvd/)
+# 3. Get the project root (the directory containing tests/ and smallevals/)
 project_root = parent_dir.parent 
 
 # Add the project root to sys.path
@@ -45,11 +45,11 @@ except ImportError:
     PANDAS_AVAILABLE = False
     print("⚠️  pandas not installed. Install with: pip install pandas")
 
-from evalvd.vdb_integrations.chroma_con import ChromaConnection
+from smallevals.vdb_integrations.chroma_con import ChromaConnection
 from sentence_transformers import SentenceTransformer
-from evalvd.eval.metrics import calculate_retrieval_metrics
-from evalvd.ui.ranking import calculate_metrics_from_df
-from evalvd.utils.versioning import create_version, save_to_version
+from smallevals.eval.metrics import calculate_retrieval_metrics
+from smallevals.ui.ranking import calculate_metrics_from_df
+from smallevals.utils.versioning import create_version, save_to_version
 
 
 def load_qa_from_parquet(parquet_path: Path) -> pd.DataFrame:
@@ -371,7 +371,7 @@ def main():
         )
         
         print(f"   ✅ Saved to version folder: {version_path}")
-        print(f"   💡 You can now view this in Streamlit UI: streamlit run evalvd/ui/app.py")
+        print(f"   💡 You can now view this in Streamlit UI: streamlit run smallevals/ui/app.py")
     except Exception as e:
         print(f"   ⚠️  Failed to save to version system: {e}")
         print(f"   (Results still saved to {output_file})")

@@ -4,8 +4,8 @@ import pytest
 import numpy as np
 from testcontainers.weaviate import WeaviateContainer
 
-from evalvd.vdb_integrations.weaviate_con import WeaviateConnection
-from evalvd.eval.engine import evaluate_vectordb
+from smallevals.vdb_integrations.weaviate_con import WeaviateConnection
+from smallevals.eval.engine import evaluate_vectordb
 from sentence_transformers import SentenceTransformer
 
 

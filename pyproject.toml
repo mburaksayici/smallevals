@@ -1,5 +1,5 @@
 [project]
-name = "evalvd"
+name = "smallevals"
 version = "0.1.0"
 description = "Small Language Models Evaluation Suite for RAG Systems"
 readme = "README.md"
@@ -69,7 +69,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["evalvd"]
+source = ["smallevals"]
 omit = [
     "*/tests/*",
     "*/test_*",
@@ -86,4 +86,4 @@ exclude_lines = [
 ]
 
 [project.scripts]
-dash = "evalvd.ui_dash.app:main"
+dash = "smallevals.ui_dash.app:main"

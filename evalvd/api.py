@@ -1,6 +1,6 @@
 """Top-level API functions for SmallEval."""
 
-from evalvd.eval.engine import (
+from smallevals.eval.engine import (
     generate_qa_from_vectordb,
     evaluate_vectordb,
     evaluate_rag,

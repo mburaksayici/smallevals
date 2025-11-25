@@ -1,6 +1,6 @@
 """SmallEval - Small Language Models Evaluation Suite for RAG Systems."""
 
-from evalvd.api import (
+from smallevals.api import (
     generate_qa_from_vectordb,
     evaluate_vectordb,
     evaluate_rag,

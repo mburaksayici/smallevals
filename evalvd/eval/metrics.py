@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 import statistics
 import warnings
 
-from evalvd.utils.logger import logger
+from smallevals.utils.logger import logger
 
 
 def precision_at_k(retrieved: List[Any], relevant: List[Any], k: int) -> float:

@@ -1146,7 +1146,7 @@ wheels = [
 ]
 
 [[package]]
-name = "evalvd"
+name = "smallevals"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

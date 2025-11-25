@@ -9,21 +9,21 @@ import json
 import base64
 from io import StringIO
 
-from evalvd.utils.versioning import (
+from smallevals.utils.versioning import (
     list_versions,
     load_version,
     get_version_metadata,
     VERSIONS_DIR
 )
-from evalvd.ui.ranking import (
+from smallevals.ui.ranking import (
     calculate_metrics_from_df,
     filter_by_rank,
     get_rank_distribution,
     rank_by_metric,
     calculate_per_query_metrics
 )
-from evalvd.ui.report_generator import generate_html_report
-from evalvd.eval.analysis import (
+from smallevals.ui.report_generator import generate_html_report
+from smallevals.eval.analysis import (
     analyze_chunk_length,
     analyze_word_char_ratio,
     analyze_query_similarity,
@@ -32,7 +32,7 @@ from evalvd.eval.analysis import (
 import plotly.graph_objects as go
 import plotly.express as px
 
-from evalvd.ui_dash.components import (
+from smallevals.ui_dash.components import (
     create_metric_card,
     create_version_info_card,
     create_header,
@@ -167,7 +167,7 @@ app.layout = html.Div([
 
 
 # Import callbacks
-from evalvd.ui_dash.callbacks import register_callbacks
+from smallevals.ui_dash.callbacks import register_callbacks
 register_callbacks(app)
 
 

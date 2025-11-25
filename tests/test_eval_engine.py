@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 import tempfile
 
-from evalvd.eval.engine import generate_qa_from_vectordb, evaluate_vectordb, evaluate_rag
-from evalvd.exceptions import ValidationError
+from smallevals.eval.engine import generate_qa_from_vectordb, evaluate_vectordb, evaluate_rag
+from smallevals.exceptions import ValidationError
 
 
 def test_generate_qa_from_vectordb_validation():

@@ -7,7 +7,7 @@ from typing import Optional
 
 
 def setup_logger(
-    name: str = "evalvd",
+    name: str = "smallevals",
     level: int = logging.INFO,
     log_file: Optional[str] = None,
     format_string: Optional[str] = None,

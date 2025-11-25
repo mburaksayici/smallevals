@@ -1,8 +1,8 @@
 """Integration tests for ChromaDB."""
 
 import pytest
-from evalvd.eval.engine import evaluate_vectordb
-from evalvd.eval.metrics import calculate_retrieval_metrics_full
+from smallevals.eval.engine import evaluate_vectordb
+from smallevals.eval.metrics import calculate_retrieval_metrics_full
 
 
 def test_chromadb_query(chroma_db, sample_qa_pairs):

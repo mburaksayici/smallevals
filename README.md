@@ -20,7 +20,7 @@ A lightweight evaluation framework powered by tiny 0.5B models — runs 100% loc
 ### Basic Installation
 
 ```bash
-pip install evalvd
+pip install smallevals
 ```
 
 **Python Requirement**: Python 3.10 or higher is required.
@@ -30,9 +30,9 @@ pip install evalvd
 To use ChromaDB and other vector databases with embeddings:
 
 ```bash
-pip install "evalvd[vectordb]"
+pip install "smallevals[vectordb]"
 # or
-pip install "evalvd[all]"
+pip install "smallevals[all]"
 ```
 
 This installs:
@@ -46,7 +46,7 @@ This installs:
 Generate golden Q/A pairs by sampling chunks from your vector database:
 
 ```python
-from evalvd import generate_qa_from_vectordb
+from smallevals import generate_qa_from_vectordb
 
 # Sample chunks from vector DB and generate Q/A pairs
 # Model is automatically loaded from HuggingFace (hardcoded in config)
@@ -62,7 +62,7 @@ qa_dataset = generate_qa_from_vectordb(
 Evaluate how well your vector database retrieves relevant chunks:
 
 ```python
-from evalvd import evaluate_vectordb
+from smallevals import evaluate_vectordb
 
 # Evaluate retrieval quality with existing Q/A dataset
 metrics = evaluate_vectordb(
@@ -81,7 +81,7 @@ print(f"Average MRR: {metrics['mrr']}")
 Evaluate both retrieval and generation components of your RAG pipeline:
 
 ```python
-from evalvd import evaluate_rag
+from smallevals import evaluate_rag
 
 # Define your RAG pipeline
 def your_rag_function(question):
@@ -124,7 +124,7 @@ pip install -e ".[test]"
 pytest
 
 # Run with coverage
-pytest --cov=evalvd --cov-report=term
+pytest --cov=smallevals --cov-report=term
 
 # Run specific test file
 pytest tests/test_chromadb.py

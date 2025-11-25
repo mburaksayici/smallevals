@@ -8,8 +8,8 @@ from typing import Optional, List, Dict, Any
 from tqdm import tqdm
 from llama_cpp import Llama
 
-from evalvd.exceptions import ModelLoadError
-from evalvd.utils.logger import logger
+from smallevals.exceptions import ModelLoadError
+from smallevals.utils.logger import logger
 
 
 # Hardcoded model configuration
@@ -46,7 +46,7 @@ def download_model_file(url: str, local_path: Optional[str] = None) -> str:
         # Extract filename from URL
         filename = url.split("/")[-1]
         # Use a models directory in the user's home or current directory
-        models_dir = Path.home() / ".evalvd" / "models"
+        models_dir = Path.home() / ".smallevals" / "models"
         models_dir.mkdir(parents=True, exist_ok=True)
         local_path = str(models_dir / filename)
     

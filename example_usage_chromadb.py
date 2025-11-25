@@ -46,11 +46,11 @@ except ImportError:
     PANDAS_AVAILABLE = False
     print("⚠️  pandas not installed. Install with: pip install pandas")
 
-from evalvd.vdb_integrations.chroma_con import ChromaConnection
+from smallevals.vdb_integrations.chroma_con import ChromaConnection
 from sentence_transformers import SentenceTransformer
-from evalvd.eval.metrics import calculate_retrieval_metrics
-from evalvd.generation.qa_generator import QAGenerator
-from evalvd.utils.versioning import create_version, save_to_version
+from smallevals.eval.metrics import calculate_retrieval_metrics
+from smallevals.generation.qa_generator import QAGenerator
+from smallevals.utils.versioning import create_version, save_to_version
 
 
 def load_existing_chromadb(

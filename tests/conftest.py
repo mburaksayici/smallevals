@@ -10,7 +10,7 @@ import pytest
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from evalvd.vdb_integrations.chroma_con import ChromaConnection
+from smallevals.vdb_integrations.chroma_con import ChromaConnection
 from sentence_transformers import SentenceTransformer
 
 

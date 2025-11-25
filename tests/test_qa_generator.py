@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from evalvd.generation.qa_generator import QAGenerator
-from evalvd.exceptions import ValidationError
+from smallevals.generation.qa_generator import QAGenerator
+from smallevals.exceptions import ValidationError
 
 
 def test_qa_generator_validation():
@@ -20,7 +20,7 @@ def test_qa_generator_validation():
 def test_qa_generator_generate_from_chunks_validation():
     """Test validation in generate_from_chunks."""
     # Mock model loader to avoid actual model loading
-    with patch('evalvd.generation.qa_generator.ModelLoader'):
+    with patch('smallevals.generation.qa_generator.ModelLoader'):
         generator = QAGenerator(batch_size=2)
         
         # Test empty chunks
@@ -34,7 +34,7 @@ def test_qa_generator_generate_from_chunks_validation():
 
 def test_qa_generator_format_prompt():
     """Test prompt formatting."""
-    with patch('evalvd.generation.qa_generator.ModelLoader'):
+    with patch('smallevals.generation.qa_generator.ModelLoader'):
         generator = QAGenerator()
         
         passage = "This is a test passage."
@@ -46,7 +46,7 @@ def test_qa_generator_format_prompt():
 
 def test_qa_generator_generate_qa_batch_validation():
     """Test validation in generate_qa_batch."""
-    with patch('evalvd.generation.qa_generator.ModelLoader'):
+    with patch('smallevals.generation.qa_generator.ModelLoader'):
         generator = QAGenerator(batch_size=2)
         
         # Test invalid max_retries

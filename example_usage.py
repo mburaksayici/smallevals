@@ -59,11 +59,11 @@ def test_imports():
     print("=" * 60)
     
     try:
-        from evalvd import generate_qa_from_vectordb, evaluate_vectordb, evaluate_rag
-        from evalvd.models.loader import ModelLoader
-        from evalvd.generation.qa_generator import QAGenerator
-        from evalvd.eval.metrics import calculate_retrieval_metrics
-        from evalvd.vdb_integrations.base import BaseVDBConnection
+        from smallevals import generate_qa_from_vectordb, evaluate_vectordb, evaluate_rag
+        from smallevals.models.loader import ModelLoader
+        from smallevals.generation.qa_generator import QAGenerator
+        from smallevals.eval.metrics import calculate_retrieval_metrics
+        from smallevals.vdb_integrations.base import BaseVDBConnection
         print("✅ All imports successful!")
         return True
     except Exception as e:
@@ -80,7 +80,7 @@ def test_vectordb_abstraction():
     print("=" * 60)
     
     try:
-        from evalvd.vdb_integrations.base import BaseVDBConnection
+        from smallevals.vdb_integrations.base import BaseVDBConnection
         
         mock_db = MockVectorDB()
         
@@ -153,7 +153,7 @@ def test_chromadb_integration():
     try:
         import chromadb
         from sentence_transformers import SentenceTransformer
-        from evalvd.eval.metrics import calculate_retrieval_metrics
+        from smallevals.eval.metrics import calculate_retrieval_metrics
         
         # Use smallest embedding model
         print("   Loading embedding model (all-MiniLM-L6-v2)...")
@@ -308,7 +308,7 @@ def test_model_loader(full_test=False):
     print("=" * 60)
     
     try:
-        from evalvd.models.loader import ModelLoader
+        from smallevals.models.loader import ModelLoader
         
         if full_test:
             print("   Loading QA generator model (this will download if not cached)...")
@@ -341,7 +341,7 @@ def test_metrics():
     print("=" * 60)
     
     try:
-        from evalvd.eval.metrics import (
+        from smallevals.eval.metrics import (
             precision_at_k,
             recall_at_k,
             mean_reciprocal_rank,
@@ -393,7 +393,7 @@ def test_document_generation_mode(full_test=False):
     print("=" * 60)
     
     try:
-        from evalvd.generation.qa_generator import QAGenerator
+        from smallevals.generation.qa_generator import QAGenerator
         
         # Create temporary directory with 10 text files
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -482,7 +482,7 @@ def test_full_workflow(full_test=False, chroma_query_fn=None, chroma_sample_fn=N
     cleanup_needed = chroma_client is not None and chroma_collection_name is not None
     
     try:
-        from evalvd import generate_qa_from_vectordb, evaluate_vectordb, evaluate_rag
+        from smallevals import generate_qa_from_vectordb, evaluate_vectordb, evaluate_rag
         
         # Use ChromaDB if available, otherwise use mock
         if chroma_query_fn and chroma_sample_fn:

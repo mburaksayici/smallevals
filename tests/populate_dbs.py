@@ -15,7 +15,7 @@ from pathlib import Path
 current_dir = Path(__file__).resolve() 
 # 2. Get the parent directory (tests/)
 parent_dir = current_dir.parent
-# 3. Get the project root (the directory containing tests/ and evalvd/)
+# 3. Get the project root (the directory containing tests/ and smallevals/)
 project_root = parent_dir.parent 
 
 # Add the project root to sys.path
@@ -37,32 +37,32 @@ except ImportError:
     raise ImportError("sentence-transformers is required. Install with: pip install sentence-transformers")
 
 # Import QAGenerator
-from evalvd.generation.qa_generator import QAGenerator
+from smallevals.generation.qa_generator import QAGenerator
 
 # Import vector database connections (with error handling for optional dependencies)
 try:
-    from evalvd.vdb_integrations.chroma_con import ChromaConnection
+    from smallevals.vdb_integrations.chroma_con import ChromaConnection
     CHROMA_AVAILABLE = True
 except ImportError:
     CHROMA_AVAILABLE = False
     ChromaConnection = None
 
 try:
-    from evalvd.vdb_integrations.milvus_con import MilvusConnection
+    from smallevals.vdb_integrations.milvus_con import MilvusConnection
     MILVUS_AVAILABLE = True
 except ImportError:
     MILVUS_AVAILABLE = False
     MilvusConnection = None
 
 try:
-    from evalvd.vdb_integrations.qdrant_con import QdrantConnection
+    from smallevals.vdb_integrations.qdrant_con import QdrantConnection
     QDRANT_AVAILABLE = True
 except ImportError:
     QDRANT_AVAILABLE = False
     QdrantConnection = None
 
 try:
-    from evalvd.vdb_integrations.weaviate_con import WeaviateConnection
+    from smallevals.vdb_integrations.weaviate_con import WeaviateConnection
     WEAVIATE_AVAILABLE = True
 except ImportError:
     WEAVIATE_AVAILABLE = False

@@ -2,10 +2,10 @@
 
 from typing import List, Dict, Any, Optional
 from tqdm import tqdm
-from evalvd.models.loader import ModelLoader
-from evalvd.utils.json_parser import parse_json_response
-from evalvd.exceptions import ValidationError, QAGenerationError
-from evalvd.utils.logger import logger
+from smallevals.models.loader import ModelLoader
+from smallevals.utils.json_parser import parse_json_response
+from smallevals.exceptions import ValidationError, QAGenerationError
+from smallevals.utils.logger import logger
 
 
 class QAGenerator:

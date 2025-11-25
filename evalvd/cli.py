@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from evalvd.api import (
+from smallevals.api import (
     generate_qa_from_vectordb,
     evaluate_vectordb,
     evaluate_rag,

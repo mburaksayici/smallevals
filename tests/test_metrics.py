@@ -1,7 +1,7 @@
 """Unit tests for metrics calculation."""
 
 import pytest
-from evalvd.eval.metrics import (
+from smallevals.eval.metrics import (
     precision_at_k,
     recall_at_k,
     mean_reciprocal_rank,
