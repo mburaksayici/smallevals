@@ -88,4 +88,5 @@ exclude_lines = [
 ]
 
 [project.scripts]
+smallevals = "smallevals.cli:main"
 dash = "smallevals.ui_dash.app:main"
