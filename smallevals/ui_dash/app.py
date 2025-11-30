@@ -9,20 +9,14 @@ import json
 import base64
 from io import StringIO
 
-from smallevals.utils.versioning import (
-    list_versions,
-    load_version,
-    get_version_metadata,
-    VERSIONS_DIR
+from smallevals.utils.results_manager import (
+    list_results,
+    load_result,
+    get_result_metadata,
+    RESULTS_DIR
 )
-from smallevals.ui.ranking import (
-    calculate_metrics_from_df,
-    filter_by_rank,
-    get_rank_distribution,
-    rank_by_metric,
-    calculate_per_query_metrics
-)
-from smallevals.ui.report_generator import generate_html_report
+
+from smallevals.ui_dash.report_generator import generate_html_report
 from smallevals.eval.analysis import (
     analyze_chunk_length,
     analyze_word_char_ratio,
@@ -59,7 +53,7 @@ app.index_string = '''
 <html>
     <head>
         {%metas%}
-        <title>EvalVD - Retrieval Evaluation Dashboard</title>
+        <title>smallevals - Retrieval Evaluation Dashboard</title>
         {%favicon%}
         {%css%}
         <style>
@@ -117,6 +111,7 @@ app.layout = html.Div([
     dcc.Store(id='version-data-store'),
     dcc.Store(id='filtered-data-store'),
     dcc.Store(id='analysis-results-store', data={}),
+    dcc.Store(id='table-original-data-store'),  # Store original untruncated table data
     dcc.Download(id="download-csv"),
     dcc.Download(id="download-report"),
     dcc.Download(id="download-enriched-csv"),
@@ -131,12 +126,12 @@ app.layout = html.Div([
                     dbc.CardBody([
                         dbc.Row([
                             dbc.Col([
-                                html.Label("Select Version", className="mb-1", style={"fontSize": "0.9rem"}),
+                                html.Label("Select Result", className="mb-1", style={"fontSize": "0.9rem"}),
                                 dcc.Dropdown(
                                     id='version-dropdown',
                                     options=[],
                                     value=None,
-                                    placeholder="Select a version...",
+                                    placeholder="Select a result...",
                                     style={"fontSize": "0.9rem"}
                                 )
                             ], width=4),

@@ -1,4 +1,4 @@
-"""Pytest configuration and fixtures for EvalVD tests."""
+"""Pytest configuration and fixtures for smallevals tests."""
 
 import sys
 from pathlib import Path

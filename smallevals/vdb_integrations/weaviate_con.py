@@ -82,16 +82,13 @@ class WeaviateConnection(BaseVDBConnection):
         """
         super().__init__()
 
-        # Lazy importing the dependencies
         self._import_dependencies()
 
-        # Initialize the Weaviate client
         if client is None:
             if url is None:
                 url = "http://localhost:8080"
 
             try:
-                # connect to cloud client
                 self.client = weaviate.connect_to_weaviate_cloud(
                     cluster_url=url,
                     auth_credentials=weaviate.auth.Auth.api_key(
@@ -99,8 +96,6 @@ class WeaviateConnection(BaseVDBConnection):
                     ),
                 )
             except Exception:
-                # connect to a localhost
-                # Parse the URL to get the host and port
                 parsed_url = urlparse(url)
                 host = parsed_url.hostname or "localhost"
                 port = parsed_url.port or 8080
@@ -116,7 +111,6 @@ class WeaviateConnection(BaseVDBConnection):
                         client_secret=auth_config.pop("client_secret"), **auth_config
                     )
 
-                # Use provided grpc_host or default to HTTP host
                 actual_grpc_host = grpc_host if grpc_host is not None else host
 
                 self.client = weaviate.connect_to_custom(
@@ -132,26 +126,21 @@ class WeaviateConnection(BaseVDBConnection):
         else:
             self.client = client
 
-        # Store embedding model
         self.embedding_model = embedding_model
 
-        # Set up batch configuration
         self.batch_size = batch_size
         self.batch_dynamic = batch_dynamic
         self.batch_timeout_retries = batch_timeout_retries
 
-        # Initialize the collection
         if collection_name == "random":
             while True:
                 self.collection_name = generate_random_collection_name(sep="_")
-                # Check if the collection exists
                 if not self._collection_exists(self.collection_name):
                     break
             logger.info(f"Chonkie created a new collection in Weaviate: {self.collection_name}")
         else:
             self.collection_name = collection_name
 
-        # Create the collection if it doesn't exist
         if not self._collection_exists(self.collection_name):
             self._create_collection()
 
@@ -193,7 +182,6 @@ class WeaviateConnection(BaseVDBConnection):
         from weaviate.collections.classes.config import Configure, DataType, Property
 
         try:
-            # Define the collection schema
             self.client.collections.create(
                 name=self.collection_name,
                 vector_index_config=Configure.VectorIndex.hnsw(),
@@ -260,17 +248,14 @@ class WeaviateConnection(BaseVDBConnection):
                 raise ValueError("embedding_model must be provided to encode query strings")
             embedding = self.embedding_model.encode(query).tolist()
         collection = self.client.collections.get(self.collection_name)
-        # Weaviate expects a vector for similarity search
         results = collection.query.near_vector(
             near_vector=embedding, # type: ignore[arg-type] 
             limit=limit,
             return_metadata=weaviate.classes.query.MetadataQuery(distance=True),
         )
-        # Format results to match other handshakes
         matches = []
         for obj in results.objects:
             score = getattr(obj.metadata, "distance", None) if obj.metadata else None
-            # Weaviate returns distance, convert to similarity (1 - distance) if needed
             similarity = 1.0 - score if score is not None else None
             match = {
                 "id": obj.uuid,

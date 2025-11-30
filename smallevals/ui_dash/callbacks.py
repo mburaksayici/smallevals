@@ -4,19 +4,20 @@ from dash import Input, Output, State, callback_context, html, dcc, dash_table, 
 import dash_bootstrap_components as dbc
 import pandas as pd
 import json
+import ast
 import base64
 from io import StringIO
 import plotly.graph_objects as go
 import plotly.express as px
 
-from smallevals.utils.versioning import list_versions, load_version, get_version_metadata, VERSIONS_DIR
-from smallevals.ui.ranking import (
+from smallevals.utils.results_manager import list_results, load_result, get_result_metadata, RESULTS_DIR
+from smallevals.ui_dash.ranking import (
     calculate_metrics_from_df,
     filter_by_rank,
     get_rank_distribution,
     rank_by_metric,
 )
-from smallevals.ui.report_generator import generate_html_report
+from smallevals.ui_dash.report_generator import generate_html_report
 from smallevals.eval.analysis import (
     analyze_chunk_length,
     analyze_word_char_ratio,
@@ -43,9 +44,9 @@ def register_callbacks(app):
         Input('version-dropdown', 'id')
     )
     def update_version_options(_):
-        versions = list_versions()
-        options = [{'label': v, 'value': v} for v in versions]
-        value = versions[0] if versions else None
+        results = list_results()
+        options = [{'label': v, 'value': v} for v in results]
+        value = results[0] if results else None
         return options, value
     
     # Load version data when version is selected
@@ -56,15 +57,16 @@ def register_callbacks(app):
     )
     def load_version_data(selected_version):
         if not selected_version:
-            return None, html.Div("Please select a version", style={"fontSize": "0.85rem"})
+            return None, html.Div("Please select a result", style={"fontSize": "0.85rem"})
         
         try:
-            version_data = load_version(selected_version)
-            version_metadata = version_data.get("metadata", {})
-            results_df = version_data.get("results_df")
+            result_data = load_result(selected_version)
+            metadata = result_data.get("metadata", {})
+            config = metadata.get("config", {})
+            results_df = result_data.get("results_df")
             
             if results_df is None:
-                return None, create_alert("No retrieval results found for this version.", "error")
+                return None, create_alert("No retrieval results found for this result.", "error")
             
             if isinstance(results_df, list):
                 results_df = pd.DataFrame(results_df)
@@ -72,30 +74,30 @@ def register_callbacks(app):
             # Store data
             store_data = {
                 'results_df': results_df.to_dict('records'),
-                'metadata': version_metadata,
+                'metadata': metadata,
                 'selected_version': selected_version
             }
             
-            # Compact version info
+            # Compact version info (using config for display)
             version_info = html.Div([
                 html.Span([
                     html.Strong("Model: "),
-                    version_metadata.get('embedding_model', 'N/A')
+                    config.get('embedding_model', 'N/A')
                 ], className="me-3"),
                 html.Span([
                     html.Strong("Top-K: "),
-                    str(version_metadata.get('top_k', 5))
+                    str(config.get('top_k', 5))
                 ], className="me-3"),
                 html.Span([
                     html.Strong("Created: "),
-                    version_metadata.get('created_at', 'N/A')
+                    metadata.get('created_at', 'N/A')
                 ])
             ])
             
             return store_data, version_info
             
         except Exception as e:
-            return None, create_alert(f"Error loading version: {str(e)}", "error")
+            return None, create_alert(f"Error loading result: {str(e)}", "error")
     
     # Filter data - no filtering, just pass through
     @app.callback(
@@ -127,7 +129,8 @@ def register_callbacks(app):
         
         filtered_df = pd.DataFrame(filtered_data)
         metadata = version_data.get('metadata', {})
-        top_k = metadata.get('top_k', 5)
+        config = metadata.get('config', {})
+        top_k = config.get('top_k', metadata.get('top_k', 5))  # Check config first, then metadata for backward compat
         
         if active_tab == 'metrics':
             return render_metrics_tab(filtered_df, metadata, top_k, version_data.get('selected_version'))
@@ -163,7 +166,8 @@ def register_callbacks(app):
         try:
             results_df = pd.DataFrame(version_data['results_df'])
             metadata = version_data.get('metadata', {})
-            top_k = metadata.get('top_k', 5)
+            config = metadata.get('config', {})
+            top_k = config.get('top_k', metadata.get('top_k', 5))  # Check config first, then metadata for backward compat
             
             df_analyzed, viz_data = analyze_chunk_length(results_df, top_k=top_k)
             
@@ -220,7 +224,8 @@ def register_callbacks(app):
         try:
             results_df = pd.DataFrame(version_data['results_df'])
             metadata = version_data.get('metadata', {})
-            top_k = metadata.get('top_k', 5)
+            config = metadata.get('config', {})
+            top_k = config.get('top_k', metadata.get('top_k', 5))  # Check config first, then metadata for backward compat
             
             df_analyzed, viz_data = analyze_word_char_ratio(results_df, top_k=top_k)
             
@@ -305,7 +310,8 @@ def register_callbacks(app):
         try:
             results_df = pd.DataFrame(version_data['results_df'])
             metadata = version_data.get('metadata', {})
-            top_k = metadata.get('top_k', 5)
+            config = metadata.get('config', {})
+            top_k = config.get('top_k', metadata.get('top_k', 5))  # Check config first, then metadata for backward compat
             
             df_analyzed, viz_data = analyze_query_similarity(results_df, top_k=top_k)
             
@@ -347,62 +353,115 @@ def register_callbacks(app):
         prevent_initial_call=True
     )
     def identify_devil_chunks_callback(n_clicks, version_data):
+        if not n_clicks:
+            return html.P("Click the button to identify devil chunks.", className="text-muted")
+        
         if not version_data:
-            return create_alert("Please select a version first.", "warning")
+            return create_alert("Please select a result first.", "warning")
         
         try:
             results_df = pd.DataFrame(version_data['results_df'])
             metadata = version_data.get('metadata', {})
-            top_k = metadata.get('top_k', 5)
+            config = metadata.get('config', {})
+            top_k = config.get('top_k', metadata.get('top_k', 5))
             
             df_analyzed, viz_data = identify_devil_chunks(results_df, top_k=top_k)
             
-            if 'devil_chunks' in viz_data and viz_data['devil_chunks']:
-                # Get chunk texts
-                chunk_texts = {}
-                for chunk_id in viz_data['devil_chunks'].keys():
-                    chunk_row = df_analyzed[df_analyzed['chunk_id'] == chunk_id]
-                    if len(chunk_row) > 0:
-                        chunk_texts[chunk_id] = chunk_row.iloc[0].get('chunk', 'N/A')
-                
-                devil_data = [
-                    {
-                        'Chunk ID': chunk_id,
-                        'Chunk': chunk_texts.get(chunk_id, 'N/A')[:200] + '...' if len(chunk_texts.get(chunk_id, '')) > 200 else chunk_texts.get(chunk_id, 'N/A'),
-                        'Devil Score': stats['score'],
-                        'Appearances': stats['appearances'],
-                        'Devil Count': stats['devil_count']
-                    }
-                    for chunk_id, stats in viz_data['devil_chunks'].items()
-                ]
-                devil_df = pd.DataFrame(devil_data)
-                
-                # Chart
-                chunk_ids = list(viz_data['devil_chunks'].keys())[:10]
-                scores = [viz_data['devil_chunks'][cid]['score'] for cid in chunk_ids]
-                
-                fig = go.Figure()
-                fig.add_trace(go.Bar(x=chunk_ids, y=scores, marker_color='#ff6b6b'))
-                fig = apply_chart_theme(fig)
-                fig.update_layout(
-                    title='Top 10 Devil Chunks by Score',
-                    xaxis_title='Chunk ID',
-                    yaxis_title='Devil Score'
-                )
-                
+            if not viz_data.get('devil_chunks'):
                 return html.Div([
-                    create_alert("Devil chunks identification complete!", "success"),
-                    html.P(f"Total Devil Chunks: {viz_data.get('total_devil_chunks', 0)}"),
-                    dash_table.DataTable(
-                        data=devil_df.to_dict('records'),
-                        columns=[{"name": i, "id": i} for i in devil_df.columns],
-                        style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'},
-                        style_header={'backgroundColor': '#667eea', 'color': 'white', 'fontWeight': '600'},
-                        style_data={'wordWrap': 'break-word'},
-                        page_size=20
-                    ),
-                    create_chart_container(fig, "Top 10 Devil Chunks")
+                    create_alert("No devil chunks found. All chunks are performing well!", "info"),
+                    html.P(f"Analyzed {len(results_df)} queries."),
                 ])
+            
+            # Get chunk texts and first retrieved doc examples
+            chunk_texts = {}
+            first_retrieved_examples = {}
+            questions_examples = {}
+            
+            for chunk_id in viz_data['devil_chunks'].keys():
+                chunk_id_str = str(chunk_id)
+                chunk_rows = df_analyzed[df_analyzed['chunk_id'].astype(str) == chunk_id_str]
+                
+                if len(chunk_rows) > 0:
+                    chunk_texts[chunk_id] = chunk_rows.iloc[0].get('chunk', 'N/A')
+                
+                # Find first occurrence where this chunk appears in retrieved results
+                for idx, row in df_analyzed.iterrows():
+                    retrieved_ids = row.get('retrieved_ids', [])
+                    if isinstance(retrieved_ids, str):
+                        try:
+                            retrieved_ids = ast.literal_eval(retrieved_ids)
+                        except (ValueError, SyntaxError):
+                            try:
+                                retrieved_ids = json.loads(retrieved_ids)
+                            except:
+                                retrieved_ids = []
+                    
+                    if not isinstance(retrieved_ids, list):
+                        retrieved_ids = []
+                    
+                    # Check if this devil chunk appears in retrieved results
+                    retrieved_ids_str = [str(rid) for rid in retrieved_ids]
+                    if chunk_id_str in retrieved_ids_str and chunk_id not in first_retrieved_examples:
+                        retrieved_docs = row.get('retrieved_docs', [])
+                        if isinstance(retrieved_docs, str):
+                            try:
+                                retrieved_docs = ast.literal_eval(retrieved_docs)
+                            except (ValueError, SyntaxError):
+                                try:
+                                    retrieved_docs = json.loads(retrieved_docs)
+                                except:
+                                    retrieved_docs = []
+                        
+                        if not isinstance(retrieved_docs, list):
+                            retrieved_docs = []
+                        
+                        # Get the first retrieved doc (rank 1)
+                        if retrieved_docs and len(retrieved_docs) > 0:
+                            first_retrieved_examples[chunk_id] = str(retrieved_docs[0])
+                            questions_examples[chunk_id] = row.get('question', 'N/A')
+                            break
+            
+            devil_data = [
+                {
+                    'Chunk ID': chunk_id,
+                    'Chunk': chunk_texts.get(chunk_id, 'N/A')[:200] + '...' if len(chunk_texts.get(chunk_id, '')) > 200 else chunk_texts.get(chunk_id, 'N/A'),
+                    'Question': questions_examples.get(chunk_id, 'N/A')[:150] + '...' if len(questions_examples.get(chunk_id, '')) > 150 else questions_examples.get(chunk_id, 'N/A'),
+                    'First Retrieved Doc': first_retrieved_examples.get(chunk_id, 'N/A')[:200] + '...' if len(str(first_retrieved_examples.get(chunk_id, ''))) > 200 else first_retrieved_examples.get(chunk_id, 'N/A'),
+                    'Devil Score': stats['score'],
+                    'Appearances': stats['appearances'],
+                    'Devil Count': stats['devil_count']
+                }
+                for chunk_id, stats in viz_data['devil_chunks'].items()
+            ]
+            devil_df = pd.DataFrame(devil_data)
+            
+            # Chart
+            chunk_ids = list(viz_data['devil_chunks'].keys())[:10]
+            scores = [viz_data['devil_chunks'][cid]['score'] for cid in chunk_ids]
+            
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=[str(cid) for cid in chunk_ids], y=scores, marker_color='#ff6b6b'))
+            fig = apply_chart_theme(fig)
+            fig.update_layout(
+                title='Top 10 Devil Chunks by Score',
+                xaxis_title='Chunk ID',
+                yaxis_title='Devil Score'
+            )
+            
+            return html.Div([
+                create_alert("Devil chunks identification complete!", "success"),
+                html.P(f"Total Devil Chunks: {viz_data.get('total_devil_chunks', 0)}"),
+                dash_table.DataTable(
+                    data=devil_df.to_dict('records'),
+                    columns=[{"name": i, "id": i} for i in devil_df.columns],
+                    style_cell={'textAlign': 'left', 'whiteSpace': 'normal', 'height': 'auto'},
+                    style_header={'backgroundColor': '#667eea', 'color': 'white', 'fontWeight': '600'},
+                    style_data={'wordWrap': 'break-word'},
+                    page_size=20
+                ),
+                create_chart_container(fig, "Top 10 Devil Chunks")
+            ])
         except Exception as e:
             return create_alert(f"Error: {str(e)}", "error")
     
@@ -464,6 +523,7 @@ def register_callbacks(app):
     # Table search/sort callback
     @app.callback(
         Output("table-display", "children"),
+        Output('table-original-data-store', 'data'),
         Input("table-search", "value"),
         Input("table-sort", "value"),
         Input("table-rows", "value"),
@@ -471,7 +531,7 @@ def register_callbacks(app):
     )
     def update_table_display(search_term, sort_by, num_rows, filtered_data):
         if not filtered_data:
-            return html.Div("No data available")
+            return html.Div("No data available"), None
         
         display_df = pd.DataFrame(filtered_data)
         
@@ -496,6 +556,11 @@ def register_callbacks(app):
         
         num_rows = num_rows or 50
         display_df = display_df.head(num_rows)
+        
+        # STORE ORIGINAL DATA BEFORE TRUNCATION
+        # Save original untruncated dataframe for modal display
+        original_df = display_df.copy()
+        original_data = original_df.to_dict('records')
         
         # Select only required columns
         required_cols = ['chunk_id', 'chunk', 'question', 'answer']
@@ -529,7 +594,7 @@ def register_callbacks(app):
             'retrieved_rank': '10%'
         }
         
-        # Build style_cell_conditional for column widths
+        # Build style_cell_conditional for column widths and clickable styling
         style_cell_conditional = [
             {
                 'if': {'column_id': col},
@@ -539,9 +604,19 @@ def register_callbacks(app):
             if col in display_df.columns
         ]
         
+        # Add clickable styling for chunk column
+        if 'chunk' in display_df.columns:
+            style_cell_conditional.append({
+                'if': {'column_id': 'chunk'},
+                'cursor': 'pointer',
+                'textDecoration': 'underline',
+                'textDecorationStyle': 'dotted'
+            })
+        
         return html.Div([
             html.P(f"Showing {len(display_df)} of {len(pd.DataFrame(filtered_data))} results"),
             dash_table.DataTable(
+                id='results-table',
                 data=display_df.to_dict('records'),
                 columns=[{"name": i, "id": i} for i in display_df.columns],
                 page_size=20,
@@ -554,9 +629,257 @@ def register_callbacks(app):
                 style_cell_conditional=style_cell_conditional,
                 style_header={'backgroundColor': '#667eea', 'color': 'white', 'fontWeight': '600'},
                 style_table={'width': '100%', 'overflowX': 'auto'},
-                style_data={'wordWrap': 'break-word'}
-            )
-        ])
+                style_data={'wordWrap': 'break-word'},
+                row_selectable='single',
+                active_cell={'row': 0, 'column': 0}
+            ),
+            # Chunk text modal
+            dbc.Modal(
+                [
+                    dbc.ModalHeader(dbc.ModalTitle("Full Chunk Text")),
+                    dbc.ModalBody(id="chunk-modal-body", style={"maxHeight": "70vh", "overflowY": "auto"}),
+                    dbc.ModalFooter(
+                        dbc.Button("Close", id="close-chunk-modal", className="ms-auto", n_clicks=0)
+                    ),
+                ],
+                id="chunk-modal",
+                is_open=False,
+                size="lg",
+                scrollable=True,
+            ),
+            # Row details modal
+            dbc.Modal(
+                [
+                    dbc.ModalHeader(dbc.ModalTitle("Retrieval Result Details")),
+                    dbc.ModalBody(id="row-details-modal-body", style={"maxHeight": "70vh", "overflowY": "auto"}),
+                    dbc.ModalFooter(
+                        dbc.Button("Close", id="close-row-modal", className="ms-auto", n_clicks=0)
+                    ),
+                ],
+                id="row-details-modal",
+                is_open=False,
+                size="xl",
+                scrollable=True,
+            ),
+        ]), original_data
+    
+    # Chunk cell click callback - opens chunk modal
+    @app.callback(
+        Output("chunk-modal", "is_open"),
+        Output("chunk-modal-body", "children"),
+        Input("results-table", "active_cell"),
+        Input("close-chunk-modal", "n_clicks"),
+        State("table-original-data-store", "data"),
+        State("results-table", "data"),
+        prevent_initial_call=True
+    )
+    def toggle_chunk_modal(active_cell, close_clicks, original_data, table_data):
+        ctx = callback_context
+        if not ctx.triggered:
+            return False, ""
+        
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        # Close modal if close button clicked
+        if trigger_id == "close-chunk-modal":
+            return False, ""
+        
+        # Open modal if chunk cell clicked
+        if active_cell and original_data and table_data:
+            column_id = active_cell.get('column_id')
+            row = active_cell.get('row')
+            
+            # Only open if chunk column was clicked
+            if column_id == 'chunk' and row is not None and row < len(table_data):
+                # Find matching row in original_data by chunk_id
+                current_row_data = table_data[row]
+                chunk_id = current_row_data.get('chunk_id')
+                
+                # Find matching row in original_data
+                matching_row = None
+                for orig_row in original_data:
+                    if orig_row.get('chunk_id') == chunk_id:
+                        matching_row = orig_row
+                        break
+                
+                if matching_row:
+                    chunk_text = matching_row.get('chunk', '')
+                    # Handle case where chunk might be stored as string representation
+                    if isinstance(chunk_text, str):
+                        # Remove truncation if present
+                        chunk_text = chunk_text.replace('...', '')
+                    
+                    modal_content = html.Div([
+                        html.P(chunk_text, style={"whiteSpace": "pre-wrap", "wordWrap": "break-word"})
+                    ])
+                    return True, modal_content
+        
+        return False, ""
+    
+    # Row click callback - opens row details modal
+    @app.callback(
+        Output("row-details-modal", "is_open"),
+        Output("row-details-modal-body", "children"),
+        Input("results-table", "active_cell"),
+        Input("results-table", "selected_rows"),
+        Input("close-row-modal", "n_clicks"),
+        State("table-original-data-store", "data"),
+        State("results-table", "data"),
+        prevent_initial_call=True
+    )
+    def toggle_row_details_modal(active_cell, selected_rows, close_clicks, original_data, table_data):
+        ctx = callback_context
+        if not ctx.triggered:
+            return False, ""
+        
+        trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        
+        # Close modal if close button clicked
+        if trigger_id == "close-row-modal":
+            return False, ""
+        
+        # Determine row data from active_cell or selected_rows
+        row_data = None
+        if active_cell and table_data and original_data:
+            column_id = active_cell.get('column_id')
+            # Don't open row modal if chunk column clicked (that opens chunk modal)
+            if column_id != 'chunk':
+                row_idx = active_cell.get('row')
+                if row_idx is not None and row_idx < len(table_data):
+                    # Find matching row in original_data by chunk_id
+                    current_row_data = table_data[row_idx]
+                    chunk_id = current_row_data.get('chunk_id')
+                    
+                    # Find matching row in original_data
+                    for orig_row in original_data:
+                        if orig_row.get('chunk_id') == chunk_id:
+                            row_data = orig_row
+                            break
+        elif selected_rows and len(selected_rows) > 0 and table_data and original_data:
+            row_idx = selected_rows[0]
+            if row_idx < len(table_data):
+                # Find matching row in original_data by chunk_id
+                current_row_data = table_data[row_idx]
+                chunk_id = current_row_data.get('chunk_id')
+                
+                # Find matching row in original_data
+                for orig_row in original_data:
+                    if orig_row.get('chunk_id') == chunk_id:
+                        row_data = orig_row
+                        break
+        
+        # Open modal if row clicked (and not chunk column)
+        if row_data:
+            # Extract data
+            chunk_text = row_data.get('chunk', '')
+            question = row_data.get('question', '')
+            answer = row_data.get('answer', '')
+            chunk_id = row_data.get('chunk_id', 'N/A')
+            chunk_position = row_data.get('chunk_position')
+            retrieved_docs = row_data.get('retrieved_docs', [])
+            retrieved_ids = row_data.get('retrieved_ids', [])
+            
+            # Parse retrieved_docs if it's stored as string
+            if isinstance(retrieved_docs, str):
+                try:
+                    retrieved_docs = json.loads(retrieved_docs)
+                except (json.JSONDecodeError, TypeError):
+                    # If JSON parsing fails, treat as empty list
+                    retrieved_docs = []
+            
+            # Parse retrieved_ids if it's stored as string
+            if isinstance(retrieved_ids, str):
+                try:
+                    retrieved_ids = json.loads(retrieved_ids)
+                except (json.JSONDecodeError, TypeError):
+                    # If JSON parsing fails, treat as empty list
+                    retrieved_ids = []
+            
+            # Ensure lists
+            if not isinstance(retrieved_docs, list):
+                retrieved_docs = []
+            if not isinstance(retrieved_ids, list):
+                retrieved_ids = []
+            
+            # Build retrieved chunks display
+            retrieved_chunks_html = []
+            if retrieved_docs:
+                for idx, (doc, doc_id) in enumerate(zip(retrieved_docs, retrieved_ids), start=1):
+                    is_correct = (chunk_position is not None and idx == chunk_position) or (doc_id == chunk_id)
+                    highlight_style = {
+                        "backgroundColor": "#d4edda",
+                        "border": "2px solid #28a745",
+                        "padding": "10px",
+                        "marginBottom": "10px",
+                        "borderRadius": "5px"
+                    } if is_correct else {
+                        "backgroundColor": "#f8f9fa",
+                        "border": "1px solid #dee2e6",
+                        "padding": "10px",
+                        "marginBottom": "10px",
+                        "borderRadius": "5px"
+                    }
+                    
+                    retrieved_chunks_html.append(
+                        html.Div([
+                            html.H6(f"Rank {idx}: {doc_id if doc_id else 'N/A'}", 
+                                   style={"fontWeight": "bold", "marginBottom": "5px"}),
+                            html.P(doc, style={"whiteSpace": "pre-wrap", "wordWrap": "break-word", "margin": "0"})
+                        ], style=highlight_style)
+                    )
+            else:
+                retrieved_chunks_html.append(html.P("No retrieved chunks available.", className="text-muted"))
+            
+            # Build modal content
+            modal_content = html.Div([
+                dbc.Row([
+                    dbc.Col([
+                        html.H5("Chunk ID", className="mb-2"),
+                        html.P(chunk_id, className="text-muted")
+                    ], width=6),
+                    dbc.Col([
+                        html.H5("Retrieved Position", className="mb-2"),
+                        html.P(
+                            f"Position {chunk_position}" if chunk_position else "Not found",
+                            className="text-muted"
+                        )
+                    ], width=6)
+                ], className="mb-4"),
+                html.Hr(),
+                html.H5("Chunk Text", className="mb-2"),
+                html.Div([
+                    html.P(chunk_text, style={"whiteSpace": "pre-wrap", "wordWrap": "break-word"})
+                ], style={
+                    "backgroundColor": "#f8f9fa",
+                    "padding": "15px",
+                    "borderRadius": "5px",
+                    "marginBottom": "20px"
+                }),
+                html.H5("Question", className="mb-2"),
+                html.Div([
+                    html.P(question, style={"whiteSpace": "pre-wrap", "wordWrap": "break-word"})
+                ], style={
+                    "backgroundColor": "#f8f9fa",
+                    "padding": "15px",
+                    "borderRadius": "5px",
+                    "marginBottom": "20px"
+                }),
+                html.H5("Answer", className="mb-2"),
+                html.Div([
+                    html.P(answer, style={"whiteSpace": "pre-wrap", "wordWrap": "break-word"})
+                ], style={
+                    "backgroundColor": "#f8f9fa",
+                    "padding": "15px",
+                    "borderRadius": "5px",
+                    "marginBottom": "20px"
+                }),
+                html.H5("Retrieved Chunks", className="mb-3"),
+                html.Div(retrieved_chunks_html)
+            ])
+            
+            return True, modal_content
+        
+        return False, ""
 
 
 def render_metrics_tab(filtered_df, metadata, top_k, selected_version):

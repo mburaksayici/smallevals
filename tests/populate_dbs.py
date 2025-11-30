@@ -1,9 +1,9 @@
-"""Script to populate vector databases with paragraphs and create Q/A dataset.
+"""Script to populate vector databases with case texts and create Q/A dataset.
 
 This script:
-1. Unzips paragraphs.txt.zip (31,613 paragraphs)
+1. Loads first 1000 case_text values from legal_text_classification.csv
 2. Creates embeddings using e5-small
-3. Generates Q/A pairs for first 100 chunks
+3. Generates Q/A pairs for chunks
 4. Creates parquet file with question-answer-chunk-embeddings
 5. Populates local vector databases (Chroma, Milvus, Qdrant, Weaviate, etc.)
 """
@@ -76,40 +76,39 @@ print(f"Weaviate available: {WEAVIATE_AVAILABLE}")
 # Paths
 BASE_DIR = Path(__file__).parent
 ASSETS_DIR = BASE_DIR / "assets"
-ZIP_PATH = ASSETS_DIR / "paragraphs.txt.zip"
-TEXT_PATH = ASSETS_DIR / "paragraphs.txt"
+CSV_DATA_PATH = ASSETS_DIR / "legal_text_classification.csv"
 TEST_VDBS_DIR = ASSETS_DIR / "test_vdbs"
 PARQUET_PATH = ASSETS_DIR / "qa_embeddings.parquet"
 CSV_PATH = ASSETS_DIR / "qa_embeddings.csv"
 
 # Configuration
 EMBEDDING_MODEL_NAME = "intfloat/e5-small-v2"  # e5-small
-NUM_QA_PAIRS = 5000  # Generate Q/A for first 100 chunks only
+NUM_QA_PAIRS = 0  # Generate Q/A for first 100 chunks only
 BATCH_SIZE = 32  # Batch size for embeddings
 QA_BATCH_SIZE = 8  # Batch size for QA generation
 
 
-def unzip_paragraphs() -> List[str]:
-    """Unzip paragraphs.txt.zip and return list of paragraphs."""
-    print(f"Unzipping {ZIP_PATH}...")
+def load_case_texts() -> List[str]:
+    """Load first 1000 case_text values from legal_text_classification.csv."""
+    print(f"Reading case texts from {CSV_DATA_PATH}...")
     
-    if not ZIP_PATH.exists():
-        raise FileNotFoundError(f"ZIP file not found: {ZIP_PATH}")
+    if not CSV_DATA_PATH.exists():
+        raise FileNotFoundError(f"CSV file not found: {CSV_DATA_PATH}")
     
-    # Unzip to assets directory
-    with zipfile.ZipFile(ZIP_PATH, 'r') as zip_ref:
-        zip_ref.extractall(ASSETS_DIR)
+    # Read CSV and extract first 1000 case_text values
+    df = pd.read_csv(CSV_DATA_PATH)
     
-    # Read paragraphs
-    if not TEXT_PATH.exists():
-        raise FileNotFoundError(f"Text file not found after extraction: {TEXT_PATH}")
+    if 'case_text' not in df.columns:
+        raise ValueError(f"Column 'case_text' not found in CSV. Available columns: {df.columns.tolist()}")
     
-    print(f"Reading paragraphs from {TEXT_PATH}...")
-    with open(TEXT_PATH, 'r', encoding='utf-8') as f:
-        paragraphs = [line.strip() for line in f if line.strip()]
+    # Get first 1000 case_text values, filter out any NaN values
+    case_texts = df['case_text'].head(1000).dropna().tolist()
     
-    print(f"Loaded {len(paragraphs)} paragraphs")
-    return paragraphs
+    # Filter out empty strings
+    case_texts = [text.strip() for text in case_texts if text and text.strip()]
+    
+    print(f"Loaded {len(case_texts)} case texts")
+    return case_texts
 
 
 def create_embeddings(paragraphs: List[str], model_name: str = EMBEDDING_MODEL_NAME) -> np.ndarray:
@@ -470,8 +469,8 @@ def main():
     print("Database Population Script")
     print("="*60)
     
-    # Step 1: Unzip and load paragraphs
-    paragraphs = unzip_paragraphs()
+    # Step 1: Load case texts from CSV
+    paragraphs = load_case_texts()
     
     # Step 2: Create embeddings
     embeddings = create_embeddings(paragraphs)

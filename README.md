@@ -1,8 +1,8 @@
-# SmallEval - Small Language Models Evaluation Suite for RAG Systems
+# smallevals - Small Language Models Evaluation Suite for RAG Systems
 
 A lightweight evaluation framework powered by tiny 0.5B models — runs 100% locally on CPU/GPU/MPS, extremely fast and cheap.
 
-**SmallEval** evaluates **retrieval quality** for RAG systems using **small 0.5B models** instead of expensive GPT-4o/Claude judges. Generation evaluation models are incoming.
+**smallevals** evaluates **retrieval quality** for RAG systems using **small 0.5B models** instead of expensive GPT-4o/Claude judges. Generation evaluation models are incoming.
 
 ## Model Suite
 
@@ -20,7 +20,7 @@ A lightweight evaluation framework powered by tiny 0.5B models — runs 100% loc
 ### Basic Installation
 
 ```bash
-pip install smallevals
+pip install smallevalss
 ```
 
 **Python Requirement**: Python 3.10 or higher is required.
@@ -30,9 +30,9 @@ pip install smallevals
 To use ChromaDB and other vector databases with embeddings:
 
 ```bash
-pip install "smallevals[vectordb]"
+pip install "smallevalss[vectordb]"
 # or
-pip install "smallevals[all]"
+pip install "smallevalss[all]"
 ```
 
 This installs:
@@ -46,7 +46,7 @@ This installs:
 Generate golden Q/A pairs by sampling chunks from your vector database:
 
 ```python
-from smallevals import generate_qa_from_vectordb
+from smallevalss import generate_qa_from_vectordb
 
 # Sample chunks from vector DB and generate Q/A pairs
 # Model is automatically loaded from HuggingFace (hardcoded in config)
@@ -62,7 +62,7 @@ qa_dataset = generate_qa_from_vectordb(
 Evaluate how well your vector database retrieves relevant chunks:
 
 ```python
-from smallevals import evaluate_vectordb
+from smallevalss import evaluate_vectordb
 
 # Evaluate retrieval quality with existing Q/A dataset
 metrics = evaluate_vectordb(
@@ -81,7 +81,7 @@ print(f"Average MRR: {metrics['mrr']}")
 Evaluate both retrieval and generation components of your RAG pipeline:
 
 ```python
-from smallevals import evaluate_rag
+from smallevalss import evaluate_rag
 
 # Define your RAG pipeline
 def your_rag_function(question):
@@ -105,7 +105,7 @@ print(f"Retrieval MRR: {metrics['retrieval']['mrr']}")
 
 ## Supported Vector Databases
 
-SmallEval works with any vector database through LlamaIndex abstractions:
+smallevals works with any vector database through LlamaIndex abstractions:
 - Pinecone
 - Weaviate
 - Chroma
@@ -124,7 +124,7 @@ pip install -e ".[test]"
 pytest
 
 # Run with coverage
-pytest --cov=smallevals --cov-report=term
+pytest --cov=smallevalss --cov-report=term
 
 # Run specific test file
 pytest tests/test_chromadb.py

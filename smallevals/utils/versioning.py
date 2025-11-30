@@ -1,10 +1,11 @@
 """Version management system for storing and loading evaluation results with different embeddings."""
 
 import json
-import csv
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+
+import pandas as pd
 
 
 VERSIONS_DIR = Path("versions")
@@ -145,14 +146,7 @@ def load_version(version_name: str) -> Dict[str, Any]:
     results_path = version_path / "retrieval_results.csv"
     result["results_df"] = None
     if results_path.exists():
-        try:
-            import pandas as pd
-            result["results_df"] = pd.read_csv(results_path)
-        except ImportError:
-            # Fallback to manual CSV reading if pandas not available
-            with open(results_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                result["results_df"] = list(reader)
+        result["results_df"] = pd.read_csv(results_path)
     
     return result
 
@@ -215,26 +209,13 @@ def save_to_version(
     # Save retrieval results
     if results_df is not None:
         results_path = version_path / "retrieval_results.csv"
-        try:
-            import pandas as pd
-            if isinstance(results_df, pd.DataFrame):
-                results_df.to_csv(results_path, index=False)
-            else:
-                # Convert list of dicts to DataFrame
-                df = pd.DataFrame(results_df)
-                df.to_csv(results_path, index=False)
-        except ImportError:
-            # Fallback to manual CSV writing
-            if results_df and len(results_df) > 0:
-                fieldnames = results_df[0].keys() if isinstance(results_df, list) else results_df.columns
-                with open(results_path, "w", encoding="utf-8", newline="") as f:
-                    writer = csv.DictWriter(f, fieldnames=fieldnames)
-                    writer.writeheader()
-                    if isinstance(results_df, list):
-                        writer.writerows(results_df)
-                    else:
-                        for _, row in results_df.iterrows():
-                            writer.writerow(row.to_dict())
+        import pandas as pd
+        if isinstance(results_df, pd.DataFrame):
+            results_df.to_csv(results_path, index=False)
+        else:
+            # Convert list of dicts to DataFrame
+            df = pd.DataFrame(results_df)
+            df.to_csv(results_path, index=False)
     
     return version_path
 

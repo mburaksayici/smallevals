@@ -48,7 +48,7 @@ except ImportError:
 from smallevals.vdb_integrations.chroma_con import ChromaConnection
 from sentence_transformers import SentenceTransformer
 from smallevals.eval.metrics import calculate_retrieval_metrics
-from smallevals.ui.ranking import calculate_metrics_from_df
+from smallevals.ui_dash.ranking import calculate_metrics_from_df
 from smallevals.utils.versioning import create_version, save_to_version
 
 
@@ -152,8 +152,6 @@ def test_retrieval_with_parquet_questions(
     Returns:
         pandas DataFrame with retrieval results
     """
-    if not PANDAS_AVAILABLE:
-        raise ImportError("pandas is required. Install with: pip install pandas")
     
     print(f"\n{'='*60}")
     print("Testing Retrieval with Parquet Questions")
@@ -263,10 +261,6 @@ def main():
     
     if not CHROMADB_AVAILABLE:
         print("❌ ChromaDB is not installed. Install with: pip install chromadb")
-        return
-    
-    if not PANDAS_AVAILABLE:
-        print("❌ pandas is not installed. Install with: pip install pandas")
         return
     
     # Configuration - paths relative to tests directory

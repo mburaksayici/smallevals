@@ -1,6 +1,6 @@
 """Model loading and inference module."""
 
-from smallevals.models.loader import ModelLoader
+from smallevals.models.golden_generator import GoldenGenerator, ModelVariant
 
-__all__ = ["ModelLoader"]
+__all__ = ["GoldenGenerator", "ModelVariant"]
 

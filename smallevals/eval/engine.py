@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Union, Callable
 from tqdm import tqdm
+import pandas as pd
 
 from smallevals.vdb_integrations.base import BaseVDBConnection
 from smallevals.generation.qa_generator import QAGenerator
@@ -166,130 +167,244 @@ def _validate_qa_pair(qa_pair: Dict[str, Any], index: int) -> None:
         raise ValidationError(f"QA pair at index {index} missing required field: 'question'")
 
 
-def evaluate_vectordb(
-    qa_dataset: Union[str, Path, List[Dict[str, Any]]],
-    vectordb: Union[Any, BaseVDBConnection],
+
+def create_results_dataframe(
+    qa_pairs: List[Dict[str, Any]],
+    vectordb: BaseVDBConnection,
+    retrieval_results: List[List[Dict[str, Any]]],
+    top_k: int = 5
+) -> "pd.DataFrame":
+    """
+    Create pandas DataFrame from QA pairs and retrieval results matching dash app format.
+    
+    Args:
+        qa_pairs: List of QA pair dictionaries with question, answer, passage, chunk_id
+        vectordb: Vector database connection instance
+        retrieval_results: List of retrieval results (one list per QA pair)
+        top_k: Number of top results that were retrieved
+        
+    Returns:
+        pandas DataFrame with columns: chunk, chunk_id, question, answer, retrieved_docs, 
+        retrieved_ids, num_retrieved, chunk_position
+    """
+    logger.info(f"Creating results DataFrame from {len(qa_pairs)} QA pairs...")
+    
+    rows = []
+    for qa_pair, retrieved in zip(qa_pairs, retrieval_results):
+        question = qa_pair.get("question", "")
+        answer = qa_pair.get("answer", "")
+        passage = qa_pair.get("passage", "")
+        chunk_id = qa_pair.get("chunk_id", "")
+        
+        if not question:
+            continue
+        
+        # Extract retrieved docs and ids
+        retrieved_docs = [r.get("text", "") for r in retrieved]
+        retrieved_ids = [r.get("id", "") for r in retrieved]
+        
+        # Find the position of the original chunk in retrieved results
+        chunk_position = None
+        for pos, retrieved_id in enumerate(retrieved_ids):
+            if retrieved_id == chunk_id:
+                chunk_position = pos + 1  # 1-indexed position
+                break
+        
+        # If not found by ID, try to match by text content
+        if chunk_position is None:
+            for pos, retrieved_doc in enumerate(retrieved_docs):
+                if retrieved_doc == passage or retrieved_doc.strip() == passage.strip():
+                    chunk_position = pos + 1  # 1-indexed position
+                    break
+        
+        rows.append({
+            "chunk": passage,
+            "chunk_id": chunk_id,
+            "question": question,
+            "answer": answer,
+            "retrieved_docs": retrieved_docs,
+            "retrieved_ids": retrieved_ids,
+            "num_retrieved": len(retrieved_docs),
+            "chunk_position": chunk_position  # Position of original chunk in retrieved results (1-indexed, None if not found)
+        })
+    
+    # Create DataFrame
+    df = pd.DataFrame(rows)
+    logger.info(f"Created DataFrame with {len(df)} rows and {len(df.columns)} columns")
+    
+    return df
+
+
+def evaluate_retrievals(
+    connection: BaseVDBConnection,
     top_k: int = 5,
-    query_fn: Optional[Callable] = None,
-    sample_fn: Optional[Callable] = None,
+    n_chunks: int = 100,
+    device: Optional[str] = None,
+    results_folder: Optional[Union[str, Path]] = None,
+    batch_size: int = 8,
 ) -> Dict[str, Any]:
     """
-    Evaluate vector database retrieval quality.
-
-    Args:
-        qa_dataset: Path to JSONL file or list of Q/A dictionaries
-        vectordb: Vector database instance (BaseVDBConnection) or custom object
-        top_k: Number of top results to retrieve
-        query_fn: Optional query function if using custom vector DB (deprecated)
-        sample_fn: Optional sample function if using custom vector DB (deprecated)
-
-    Returns:
-        Dictionary with aggregated metrics and per-sample metrics
-        
-    Raises:
-        ValidationError: If parameters or QA dataset structure is invalid
-    """
-    # Validate parameters
-    _validate_evaluate_params(qa_dataset, top_k)
+    Evaluate retrieval quality by generating QA pairs, evaluating, and saving all results.
     
-    # Load Q/A dataset
-    if isinstance(qa_dataset, (str, Path)):
-        qa_dataset_path = Path(qa_dataset)
-        qa_pairs = []
-        with open(qa_dataset_path, "r", encoding="utf-8") as f:
-            for i, line in enumerate(f):
-                if line.strip():
-                    try:
-                        qa_pair = json.loads(line)
-                        _validate_qa_pair(qa_pair, i)
-                        qa_pairs.append(qa_pair)
-                    except json.JSONDecodeError as e:
-                        raise ValidationError(f"Invalid JSON in QA dataset at line {i+1}: {e}")
-    else:
-        qa_pairs = qa_dataset
-        # Validate all QA pairs
-        for i, qa_pair in enumerate(qa_pairs):
-            _validate_qa_pair(qa_pair, i)
-
+    This is the main evaluation function that:
+    1. Generates QA pairs from sampled chunks
+    2. Evaluates retrieval quality
+    3. Creates a results folder with all artifacts
+    4. Generates HTML report
+    5. Returns comprehensive result dictionary
+    
+    Args:
+        connection: SmallEvalsVDBConnection or BaseVDBConnection instance
+        top_k: Number of top results to retrieve per query
+        n_chunks: Number of chunks to sample and generate QA pairs from
+        device: Device to use ("cuda", "mps", "cpu", or None for auto-detect)
+        results_folder: Optional path or name for results folder. If None, generates random name.
+        batch_size: Batch size for QA generation
+        
+    Returns:
+        Dictionary with:
+        - config: Input parameters
+        - results_path: Path to results folder
+        - metrics: Evaluation metrics
+        - qa_pairs_path: Path to qa_pairs.jsonl
+        - results_csv_path: Path to retrieval_results.csv
+        - html_report_path: Path to report.html
+        - dataframe: Results DataFrame
+    """
+    from smallevals.utils.results_manager import (
+        create_result_folder,
+        save_evaluation_results
+    )
+    from smallevals.ui_dash.report_generator import generate_html_report
+    
+    logger.info("=" * 60)
+    logger.info("Starting Retrieval Evaluation")
+    logger.info("=" * 60)
+    
+    # Step 1: Generate QA pairs
+    logger.info(f"Step 1: Generating QA pairs from {n_chunks} chunks...")
+    qa_pairs = generate_qa_from_vectordb(
+        vectordb=connection,
+        num_chunks=n_chunks,
+        device=device,
+        batch_size=batch_size
+    )
+    
     if not qa_pairs:
-        raise ValidationError("QA dataset is empty")
-
-    logger.info(f"Loaded {len(qa_pairs)} Q/A pairs")
-
-    # Use vectordb directly if it's a BaseVDBConnection
-    if isinstance(vectordb, BaseVDBConnection):
-        vdb = vectordb
-    elif query_fn is not None:
-        # Fallback: create wrapper for custom functions
-        class CustomVDB(BaseVDBConnection):
-            def search(self, query=None, embedding=None, limit=5):
-                if query:
-                    results = query_fn(query, limit)
-                    # Normalize results
-                    normalized = []
-                    for result in results:
-                        if isinstance(result, dict):
-                            normalized.append({
-                                "text": result.get("text", ""),
-                                "metadata": result.get("metadata", {}),
-                                "score": result.get("score", result.get("similarity", None)),
-                                "id": result.get("id", None),
-                            })
-                        else:
-                            normalized.append({"text": str(result), "metadata": {}, "score": None})
-                    return normalized
-                return []
-            def sample_chunks(self, num_chunks):
-                if sample_fn:
-                    results = sample_fn(num_chunks)
-                    # Normalize results
-                    normalized = []
-                    for result in results:
-                        if isinstance(result, dict):
-                            normalized.append({
-                                "text": result.get("text", ""),
-                                "metadata": result.get("metadata", {}),
-                                "id": result.get("id", None),
-                            })
-                        else:
-                            normalized.append({"text": str(result), "metadata": {}})
-                    return normalized
-                return []
-        vdb = CustomVDB()
-    elif hasattr(vectordb, "query"):
-        vdb = vectordb
-    else:
-        raise ValueError("vectordb must be a BaseVDBConnection instance or have query method")
-
+        raise ValueError("No QA pairs generated. Check your vector database connection and chunks.")
+    
+    logger.info(f"✅ Generated {len(qa_pairs)} QA pairs")
+    
+    # Step 2: Evaluate retrieval quality
+    logger.info(f"Step 2: Evaluating retrieval quality with top_k={top_k}...")
+    
     # Query vector DB for each question
-    logger.info(f"Querying vector database with top_k={top_k}...")
     retrieval_results = []
     for qa_pair in tqdm(qa_pairs, desc="Querying vector DB", unit="query"):
         question = qa_pair.get("question", "")
         if not question:
             retrieval_results.append([])
             continue
-
-        retrieved = vdb.query(question, top_k=top_k)
+        retrieved = connection.query(question, top_k=top_k)
         retrieval_results.append(retrieved)
-
-    logger.info("Calculating metrics...")
+    
     # Calculate metrics
+    logger.info("Calculating metrics...")
     metrics_result = calculate_retrieval_metrics_full(
         qa_pairs, retrieval_results, top_k=top_k
     )
-
-    # Flatten aggregated metrics for easier access
     aggregated = metrics_result["aggregated"]
     
-    # Return flattened structure for convenience
-    result = {
-        **aggregated,  # Flattened metrics
-        "aggregated": aggregated,  # Nested structure
-        "per_sample": metrics_result["per_sample"],
+    # Step 3: Create results folder
+    if results_folder is None:
+        result_path = create_result_folder()
+    else:
+        result_path = create_result_folder(results_folder)
+    
+    logger.info(f"Step 3: Saving results to {result_path}")
+    
+    # Step 4: Create DataFrame
+    logger.info("Step 4: Creating results DataFrame...")
+    results_df = create_results_dataframe(
+        qa_pairs=qa_pairs,
+        vectordb=connection,
+        retrieval_results=retrieval_results,
+        top_k=top_k
+    )
+    
+    # Step 5: Prepare config
+    config = {
+        "top_k": top_k,
+        "n_chunks": n_chunks,
+        "device": device or "auto-detected",
+        "batch_size": batch_size,
+        "num_qa_pairs": len(qa_pairs),
     }
-
-    return result
+    
+    # Get embedding model info if available
+    if hasattr(connection, 'embedding_model') and connection.embedding_model:
+        try:
+            model_name = getattr(connection.embedding_model, 'model_name', None)
+            if model_name:
+                config["embedding_model"] = model_name
+        except Exception:
+            pass
+    
+    # Step 6: Generate HTML report
+    logger.info("Step 5: Generating HTML report...")
+    version_metadata = {
+        "selected_version": result_path.name,
+        "description": f"Evaluation with top_k={top_k}, n_chunks={n_chunks}",
+        **config
+    }
+    # Use calculate_metrics_from_df to ensure consistency with Dash app
+    from smallevals.ui_dash.ranking import calculate_metrics_from_df
+    dash_metrics = calculate_metrics_from_df(results_df, top_k=top_k)
+    # Merge with aggregated metrics to keep other fields (like num_queries, num_found, etc.)
+    report_metrics = {**aggregated, **dash_metrics}
+    html_report = generate_html_report(
+        df=results_df,
+        metrics=report_metrics,
+        version_metadata=version_metadata,
+        top_k=top_k
+    )
+    
+    # Step 7: Save all artifacts
+    logger.info("Step 6: Saving all artifacts...")
+    save_evaluation_results(
+        result_folder=result_path,
+        qa_pairs=qa_pairs,
+        results_df=results_df,
+        metrics=aggregated,
+        config=config,
+        html_report=html_report,
+    )
+    
+    # Step 8: Print completion message
+    print("\n" + "=" * 60)
+    print("✅ Evaluation Complete!")
+    print("=" * 60)
+    print(f"Results saved to: {result_path}")
+    print(f"\nKey Metrics:")
+    print(f"  Hit Rate@{top_k}: {aggregated.get(f'hit_rate@{top_k}', 0):.4f}")
+    print(f"  Precision@{top_k}: {aggregated.get(f'precision@{top_k}', 0):.4f}")
+    print(f"  Recall@{top_k}: {aggregated.get(f'recall@{top_k}', 0):.4f}")
+    print(f"  MRR: {aggregated.get('mrr', 0):.4f}")
+    print("\n" + "=" * 60)
+    print("Run 'uv run python -m smallevals.ui_dash.app' to see results.")
+    print("=" * 60 + "\n")
+    
+    # Return comprehensive result dictionary
+    return {
+        "config": config,
+        "results_path": str(result_path),
+        "metrics": aggregated,
+        "qa_pairs_path": str(result_path / "qa_pairs.jsonl"),
+        "results_csv_path": str(result_path / "retrieval_results.csv"),
+        "html_report_path": str(result_path / "report.html"),
+        "dataframe": results_df,
+        "num_qa_pairs": len(qa_pairs),
+    }
 
 
 def evaluate_rag(

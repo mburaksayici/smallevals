@@ -1,4 +1,4 @@
-"""Structured logging setup for EvalVD."""
+"""Structured logging setup for smallevals."""
 
 import logging
 import sys

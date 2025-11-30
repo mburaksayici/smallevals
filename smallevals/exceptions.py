@@ -1,32 +1,32 @@
-"""Custom exception classes for EvalVD."""
+"""Custom exception classes for smallevals."""
 
 
-class EvalVDError(Exception):
-    """Base exception for all EvalVD errors."""
+class smallevalsError(Exception):
+    """Base exception for all smallevals errors."""
     pass
 
 
-class ModelLoadError(EvalVDError):
+class ModelLoadError(smallevalsError):
     """Raised when model loading fails."""
     pass
 
 
-class VDBConnectionError(EvalVDError):
+class VDBConnectionError(smallevalsError):
     """Raised when vector database connection fails."""
     pass
 
 
-class MetricsCalculationError(EvalVDError):
+class MetricsCalculationError(smallevalsError):
     """Raised when metrics calculation fails."""
     pass
 
 
-class ValidationError(EvalVDError):
+class ValidationError(smallevalsError):
     """Raised when input validation fails."""
     pass
 
 
-class QAGenerationError(EvalVDError):
+class QAGenerationError(smallevalsError):
     """Raised when QA generation fails."""
     pass
 

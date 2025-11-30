@@ -95,7 +95,7 @@ def create_header():
     return html.Div([
         html.Div([
             html.H1(
-                "📊 EvalVD",
+                "📊 smallevals",
                 style={
                     "margin": "0",
                     "fontSize": "2.5rem",

@@ -30,6 +30,7 @@ dependencies = [
     "pytest>=9.0.1",
     "testcontainers>=4.13.3",
     "hf-transfer>=0.1.9",
+    "langchain-community>=0.4.1",
 ]
 
 [project.optional-dependencies]
