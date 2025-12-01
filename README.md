@@ -1,8 +1,8 @@
-# smallevals - Small Language Models Evaluation Suite for RAG Systems
+# smallevals <img src="logo/smallevals_emoji.png" alt="logo" width="25" height="25"> - Small Language Models Evaluation Suite for RAG Systems
 
-A lightweight evaluation framework powered by tiny 0.6B models — runs 100% locally on CPU/GPU/MPS, extremely fast and cheap.
+A lightweight evaluation framework powered by tiny ( really tiny <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> ) 0.6B models — runs 100% locally on CPU/GPU/MPS, extremely fast and cheap.
 
-Evaluation tools requiring LLM-as-a-judge, that costs/doesn't scale easily. smallevals evaluates in seconds in GPU, in minutes in any CPU!
+Evaluation tools requiring LLM-as-a-judge, that costs/doesn't scale easily. smallevals evaluates in seconds in GPU, in minutes in any CPU  <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32">!
 
 ## Evaluate Retrieval
 
@@ -43,7 +43,7 @@ vdb = SmallEvalsVDBConnection(
 )
 
 # Run evaluation
-result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200)
+result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200) # Generate question for 200 chunks, and test to retrieve them!
 ```
 And evaluate results!
 

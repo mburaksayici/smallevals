@@ -38,30 +38,15 @@ def embedding_model():
 @pytest.fixture
 def chroma_db(test_data_dir, embedding_model, qa_embeddings_parquet):
     """Create or use existing ChromaDB instance populated with test data."""
-    # Check if test_vdbs/chroma exists
+    # Always use tests/assets/test_vdbs/chroma as the persistent client folder
     test_vdbs_dir = test_data_dir / "test_vdbs"
     chroma_path = test_vdbs_dir / "chroma"
     
-    # Use existing database if it exists, otherwise use tmp_path
-    use_existing = chroma_path.exists() and chroma_path.is_dir()
+    # Ensure the directory exists
+    chroma_path.mkdir(parents=True, exist_ok=True)
     
-    if use_existing:
-        # Use existing ChromaDB - get_or_create_collection will use existing collection
-        db_path = str(chroma_path)
-        print(f"Using existing ChromaDB at {db_path}")
-    else:
-        # Create temporary database for this test run
-        import tempfile
-        import atexit
-        temp_dir = tempfile.mkdtemp(prefix="chroma_test_")
-        db_path = temp_dir
-        print(f"Creating temporary ChromaDB at {db_path}")
-        
-        def cleanup():
-            import shutil
-            if Path(temp_dir).exists():
-                shutil.rmtree(temp_dir)
-        atexit.register(cleanup)
+    db_path = str(chroma_path)
+    print(f"Using ChromaDB persistent client at {db_path}")
     
     # Create ChromaDB connection (get_or_create_collection will use existing if available)
     chroma_conn = ChromaConnection(
@@ -104,12 +89,6 @@ def chroma_db(test_data_dir, embedding_model, qa_embeddings_parquet):
         print(f"Using existing ChromaDB collection with {collection_count} chunks")
     
     yield chroma_conn
-    
-    # Only cleanup if we created a temporary database
-    if not use_existing:
-        import shutil
-        if Path(db_path).exists():
-            shutil.rmtree(db_path)
 
 
 @pytest.fixture

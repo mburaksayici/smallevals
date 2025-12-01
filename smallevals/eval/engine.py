@@ -357,14 +357,9 @@ def evaluate_retrievals(
         "description": f"Evaluation with top_k={top_k}, n_chunks={n_chunks}",
         **config
     }
-    # Use calculate_metrics_from_df to ensure consistency with Dash app
-    from smallevals.ui_dash.ranking import calculate_metrics_from_df
-    dash_metrics = calculate_metrics_from_df(results_df, top_k=top_k)
-    # Merge with aggregated metrics to keep other fields (like num_queries, num_found, etc.)
-    report_metrics = {**aggregated, **dash_metrics}
     html_report = generate_html_report(
         df=results_df,
-        metrics=report_metrics,
+        metrics=aggregated,
         version_metadata=version_metadata,
         top_k=top_k
     )
