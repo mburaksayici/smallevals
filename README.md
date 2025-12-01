@@ -1,4 +1,4 @@
-# smallevals <img src="logo/smallevals_emoji.png" alt="logo" width="25" height="25"> - Small Language Models Evaluation Suite for RAG Systems
+# smallevals <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> - Small Language Models Evaluation Suite for RAG Systems
 
 A lightweight evaluation framework powered by tiny ( really tiny <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> ) 0.6B models — runs 100% locally on CPU/GPU/MPS, extremely fast and cheap.
 
