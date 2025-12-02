@@ -3,6 +3,7 @@
 from .base import BaseVDBConnection
 from .chroma_con import ChromaConnection
 from .elastic_con import ElasticConnection
+from .faiss_con import FaissConnection
 from .milvus_con import MilvusConnection
 from .mongodb_con import MongoDBConnection
 from .pgvector_con import PgvectorConnection
@@ -15,6 +16,7 @@ __all__ = [
     "BaseVDBConnection",
     "ChromaConnection",
     "ElasticConnection",
+    "FaissConnection",
     "MilvusConnection",
     "MongoDBConnection",
     "PgvectorConnection",

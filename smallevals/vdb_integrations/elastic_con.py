@@ -36,8 +36,6 @@ class ElasticConnection(BaseVDBConnection):
         embedding_model: Optional SentenceTransformer model (HuggingFace). If provided, can be used for query encoding.
         dimension: The dimension of the vectors. Required when creating a new index.
         hosts: Optional[Union[str, List[str]]]: URL(s) of the Elasticsearch instance(s).
-        cloud_id: Optional[str]: The Cloud ID for connecting to an Elastic Cloud deployment.
-        api_key: Optional[str]: The API key for authenticating with an Elastic Cloud deployment.
         **kwargs: Additional keyword arguments to pass to the Elasticsearch client constructor.
 
     """
@@ -48,9 +46,6 @@ class ElasticConnection(BaseVDBConnection):
         index_name: Union[str, Literal["random"]] = "random",
         embedding_model: Optional["SentenceTransformer"] = None,
         dimension: int = 384,
-        hosts: Optional[Union[str, List[str]]] = None,
-        cloud_id: Optional[str] = None,
-        api_key: Optional[str] = None,
         **kwargs: Dict[str, Any],
     ) -> None:
         """Initialize the Elasticsearch Connection."""
@@ -58,15 +53,7 @@ class ElasticConnection(BaseVDBConnection):
         self._import_dependencies()
 
         # 1. Initialize the Elasticsearch client
-        if client:
-            self.client = client
-        elif cloud_id and api_key:
-            self.client = Elasticsearch(cloud_id=cloud_id, api_key=api_key, **kwargs) # type: ignore
-        elif hosts:
-            self.client = Elasticsearch(hosts=hosts, api_key=api_key, **kwargs) # type: ignore
-        else:
-            # Default to a standard local client if no other connection info is provided
-            self.client = Elasticsearch("http://localhost:9200", **kwargs) # type: ignore
+        self.client = client
 
         # 2. Store embedding model and dimension
         self.embedding_model = embedding_model

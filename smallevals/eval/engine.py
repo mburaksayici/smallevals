@@ -366,6 +366,7 @@ def evaluate_retrievals(
     
     # Step 7: Save all artifacts
     logger.info("Step 6: Saving all artifacts...")
+
     save_evaluation_results(
         result_folder=result_path,
         qa_pairs=qa_pairs,

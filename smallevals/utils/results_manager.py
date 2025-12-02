@@ -80,6 +80,7 @@ def save_evaluation_results(
         qa_path = result_path / "qa_pairs.jsonl"
         with open(qa_path, "w", encoding="utf-8") as f:
             for qa in qa_pairs:
+                qa["chunk_id"] = str(qa["chunk_id"])
                 f.write(json.dumps(qa, ensure_ascii=False) + "\n")
     
     # Save retrieval results CSV

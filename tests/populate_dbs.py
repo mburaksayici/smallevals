@@ -29,50 +29,13 @@ from typing import List, Dict, Any, Optional
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from sentence_transformers import SentenceTransformer
 
-# Import embedding model
-try:
-    from sentence_transformers import SentenceTransformer
-except ImportError:
-    raise ImportError("sentence-transformers is required. Install with: pip install sentence-transformers")
-
-# Import QAGenerator
 from smallevals.generation.qa_generator import QAGenerator
-
-# Import vector database connections (with error handling for optional dependencies)
-try:
-    from smallevals.vdb_integrations.chroma_con import ChromaConnection
-    CHROMA_AVAILABLE = True
-except ImportError:
-    CHROMA_AVAILABLE = False
-    ChromaConnection = None
-
-try:
-    from smallevals.vdb_integrations.milvus_con import MilvusConnection
-    MILVUS_AVAILABLE = True
-except ImportError:
-    MILVUS_AVAILABLE = False
-    MilvusConnection = None
-
-try:
-    from smallevals.vdb_integrations.qdrant_con import QdrantConnection
-    QDRANT_AVAILABLE = True
-except ImportError:
-    QDRANT_AVAILABLE = False
-    QdrantConnection = None
-
-try:
-    from smallevals.vdb_integrations.weaviate_con import WeaviateConnection
-    WEAVIATE_AVAILABLE = True
-except ImportError:
-    WEAVIATE_AVAILABLE = False
-    WeaviateConnection = None
-
-
-print(f"Chroma available: {CHROMA_AVAILABLE}")
-print(f"Milvus available: {MILVUS_AVAILABLE}")
-print(f"Qdrant available: {QDRANT_AVAILABLE}")
-print(f"Weaviate available: {WEAVIATE_AVAILABLE}")      
+from smallevals.vdb_integrations.chroma_con import ChromaConnection
+from smallevals.vdb_integrations.milvus_con import MilvusConnection
+from smallevals.vdb_integrations.qdrant_con import QdrantConnection
+from smallevals.vdb_integrations.weaviate_con import WeaviateConnection
 # Paths
 BASE_DIR = Path(__file__).parent
 ASSETS_DIR = BASE_DIR / "assets"
@@ -249,11 +212,7 @@ def populate_chroma(
     embedding_model: SentenceTransformer
 ):
     """Populate ChromaDB with all chunks."""
-    if not CHROMA_AVAILABLE:
-        print("\n" + "="*60)
-        print("Skipping ChromaDB (not available)")
-        print("="*60)
-        return
+   
     
     print("\n" + "="*60)
     print("Populating ChromaDB...")
@@ -300,12 +259,7 @@ def populate_milvus(
     embeddings: np.ndarray,
     embedding_model: SentenceTransformer
 ):
-    """Populate Milvus with all chunks."""
-    if not MILVUS_AVAILABLE:
-        print("\n" + "="*60)
-        print("Skipping Milvus (not available)")
-        print("="*60)
-        return
+
     
     print("\n" + "="*60)
     print("Populating Milvus...")
@@ -371,12 +325,7 @@ def populate_qdrant(
     embeddings: np.ndarray,
     embedding_model: SentenceTransformer
 ):
-    """Populate Qdrant with all chunks."""
-    if not QDRANT_AVAILABLE:
-        print("\n" + "="*60)
-        print("Skipping Qdrant (not available)")
-        print("="*60)
-        return
+
     
     print("\n" + "="*60)
     print("Populating Qdrant...")
@@ -433,12 +382,7 @@ def populate_weaviate(
     embeddings: np.ndarray,
     embedding_model: SentenceTransformer
 ):
-    """Populate Weaviate with all chunks."""
-    if not WEAVIATE_AVAILABLE:
-        print("\n" + "="*60)
-        print("Skipping Weaviate (not available)")
-        print("="*60)
-        return
+
     
     print("\n" + "="*60)
     print("Populating Weaviate...")

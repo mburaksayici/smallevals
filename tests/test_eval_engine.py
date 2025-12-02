@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 
-from smallevals.eval.engine import generate_qa_from_vectordb, evaluate_vectordb, evaluate_rag
+from smallevals.eval.engine import generate_qa_from_vectordb, evaluate_retrievals, evaluate_rag
 from smallevals.exceptions import ValidationError
 
 
@@ -30,8 +30,8 @@ def test_generate_qa_from_vectordb_validation():
         generate_qa_from_vectordb(mock_vdb, num_chunks=10, batch_size=0)
 
 
-def test_evaluate_vectordb_validation():
-    """Test input validation for evaluate_vectordb."""
+def test_evaluate_retrievals_validation():
+    """Test input validation for evaluate_retrievals."""
     # Mock vector DB
     class MockVDB:
         def query(self, question, top_k=5):
@@ -43,28 +43,28 @@ def test_evaluate_vectordb_validation():
     qa_pairs = [{"question": "q1", "answer": "a1", "chunk_id": "chunk_1", "passage": "text1"}]
     
     with pytest.raises(ValidationError):
-        evaluate_vectordb(qa_pairs, mock_vdb, top_k=0)
+        evaluate_retrievals(qa_pairs, mock_vdb, top_k=0)
     
     with pytest.raises(ValidationError):
-        evaluate_vectordb(qa_pairs, mock_vdb, top_k=-1)
+        evaluate_retrievals(qa_pairs, mock_vdb, top_k=-1)
     
     # Test invalid QA pair structure
     invalid_qa = [{"question": "q1"}]  # Missing chunk_id and passage
     
     with pytest.raises(ValidationError):
-        evaluate_vectordb(invalid_qa, mock_vdb, top_k=5)
+        evaluate_retrievals(invalid_qa, mock_vdb, top_k=5)
     
     # Test empty dataset
     with pytest.raises(ValidationError):
-        evaluate_vectordb([], mock_vdb, top_k=5)
+        evaluate_retrievals([], mock_vdb, top_k=5)
     
     # Test non-existent file
     with pytest.raises(ValidationError):
-        evaluate_vectordb("/nonexistent/file.jsonl", mock_vdb, top_k=5)
+        evaluate_retrievals("/nonexistent/file.jsonl", mock_vdb, top_k=5)
 
 
-def test_evaluate_vectordb_with_file(chroma_db, sample_qa_pairs, tmp_path):
-    """Test evaluate_vectordb with JSONL file input."""
+def test_evaluate_retrievals_with_file(chroma_db, sample_qa_pairs, tmp_path):
+    """Test evaluate_retrievals with JSONL file input."""
     # Create temporary JSONL file
     jsonl_file = tmp_path / "test_qa.jsonl"
     with open(jsonl_file, "w") as f:
@@ -72,7 +72,7 @@ def test_evaluate_vectordb_with_file(chroma_db, sample_qa_pairs, tmp_path):
             f.write(json.dumps(qa) + "\n")
     
     # Evaluate
-    metrics = evaluate_vectordb(
+    metrics = evaluate_retrievals(
         qa_dataset=str(jsonl_file),
         vectordb=chroma_db,
         top_k=5

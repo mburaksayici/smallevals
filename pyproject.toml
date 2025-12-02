@@ -25,22 +25,29 @@ dependencies = [
     "dash>=2.14.0",
     "dash-bootstrap-components>=1.5.0",
     "pymilvus>=2.6.3",
-    "weaviate>=0.1.2",
     "weaviate-client>=4.18.1",
     "pytest>=9.0.1",
-    "testcontainers>=4.13.3",
+    "testcontainers[elasticsearch,weaviate]>=4.13.3",
     "hf-transfer>=0.1.9",
     "langchain-community>=0.4.1",
+    "elasticsearch==8.11",
+    "elastic-transport==8.11",
+    "psycopg2>=2.9.11",
+    "psycopg2-binary>=2.9.11",
+    "sqlalchemy>=2.0.0",
+    "faiss-cpu>=1.13.0",
 ]
 
 [project.optional-dependencies]
 vectordb = [
     "chromadb>=0.4.0",
     "sentence-transformers>=2.2.0",
+    "faiss-cpu>=1.7.0",
 ]
 all = [
     "chromadb>=0.4.0",
     "sentence-transformers>=2.2.0",
+    "faiss-cpu>=1.7.0",
 ]
 test = [
     "pytest>=7.0.0",
