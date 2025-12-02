@@ -112,12 +112,19 @@ def generate_qa_from_vectordb(
     # Sample chunks from vector DB
     logger.info(f"Sampling {num_chunks} chunks from vector database...")
     chunks = vdb.sample_chunks(num_chunks)
+
     logger.info(f"Sampled {len(chunks)} chunks")
 
     # Generate Q/A pairs (uses hardcoded model from HuggingFace)
     logger.info("Generating Q/A pairs...")
     qa_generator = QAGenerator(device=device, batch_size=batch_size)
+
     qa_pairs = qa_generator.generate_from_chunks(chunks, max_retries=1)
+    # Add VDB IDs to qa_pairs (QA generator doesn't know about VDB IDs)
+    for i, (qa_pair, chunk) in enumerate(zip(qa_pairs, chunks)):
+        if isinstance(chunk, dict) and "id" in chunk:
+            qa_pair["id"] = chunk["id"]
+    
     logger.info(f"Generated {len(qa_pairs)} Q/A pairs")
 
     # Save to file if output specified
@@ -131,40 +138,6 @@ def generate_qa_from_vectordb(
         logger.info(f"Saved Q/A pairs to {output_path}")
 
     return qa_pairs
-
-
-def _validate_evaluate_params(
-    qa_dataset: Union[str, Path, List[Dict[str, Any]]],
-    top_k: int,
-) -> None:
-    """Validate parameters for evaluate_vectordb."""
-    if top_k <= 0:
-        raise ValidationError(f"top_k must be positive, got {top_k}")
-    
-    if isinstance(qa_dataset, (str, Path)):
-        qa_dataset_path = Path(qa_dataset)
-        if not qa_dataset_path.exists():
-            raise ValidationError(f"QA dataset file not found: {qa_dataset_path}")
-        if not qa_dataset_path.is_file():
-            raise ValidationError(f"QA dataset path is not a file: {qa_dataset_path}")
-
-
-def _validate_qa_pair(qa_pair: Dict[str, Any], index: int) -> None:
-    """Validate a single QA pair structure."""
-    if not isinstance(qa_pair, dict):
-        raise ValidationError(f"QA pair at index {index} is not a dictionary")
-    
-    # Check for required fields (either chunk_id or passage)
-    has_chunk_id = "chunk_id" in qa_pair
-    has_passage = "passage" in qa_pair
-    
-    if not has_chunk_id and not has_passage:
-        raise ValidationError(
-            f"QA pair at index {index} missing required field: must have 'chunk_id' or 'passage'"
-        )
-    
-    if "question" not in qa_pair:
-        raise ValidationError(f"QA pair at index {index} missing required field: 'question'")
 
 
 
@@ -194,24 +167,24 @@ def create_results_dataframe(
         question = qa_pair.get("question", "")
         answer = qa_pair.get("answer", "")
         passage = qa_pair.get("passage", "")
-        chunk_id = qa_pair.get("chunk_id", "")
+        chunk_id = qa_pair.get("id", "")  # Use VDB's ID
         
         if not question:
             continue
         
-        # Extract retrieved docs and ids
+        # Extract retrieved docs and ids (VDB's IDs)
         retrieved_docs = [r.get("text", "") for r in retrieved]
         retrieved_ids = [r.get("id", "") for r in retrieved]
         
-        # Find the position of the original chunk in retrieved results
+        # Find the position of the original chunk in retrieved results using VDB's ID
         chunk_position = None
         for pos, retrieved_id in enumerate(retrieved_ids):
             if retrieved_id == chunk_id:
                 chunk_position = pos + 1  # 1-indexed position
                 break
         
-        # If not found by ID, try to match by text content
-        if chunk_position is None:
+        # If not found by ID, try to match by text content (fallback)
+        if chunk_position is None and passage:
             for pos, retrieved_doc in enumerate(retrieved_docs):
                 if retrieved_doc == passage or retrieved_doc.strip() == passage.strip():
                     chunk_position = pos + 1  # 1-indexed position
@@ -219,7 +192,7 @@ def create_results_dataframe(
         
         rows.append({
             "chunk": passage,
-            "chunk_id": chunk_id,
+            "chunk_id": chunk_id,  # VDB's ID (keeping column name for compatibility)
             "question": question,
             "answer": answer,
             "retrieved_docs": retrieved_docs,
@@ -341,6 +314,16 @@ def evaluate_retrievals(
         "num_qa_pairs": len(qa_pairs),
     }
     
+    # Get VDB type/name
+    # Check if connection has vdb_type attribute (SmallEvalsVDBConnection wrapper)
+    if hasattr(connection, 'vdb_type'):
+        vdb_type = connection.vdb_type
+    else:
+        # Fall back to class name extraction
+        vdb_type = connection.__class__.__name__.replace("Connection", "").lower()
+   
+    config["vector_db"] = vdb_type.lower()
+    
     # Get embedding model info if available
     if hasattr(connection, 'embedding_model') and connection.embedding_model:
         try:
@@ -401,144 +384,3 @@ def evaluate_retrievals(
         "dataframe": results_df,
         "num_qa_pairs": len(qa_pairs),
     }
-
-
-def evaluate_rag(
-    qa_dataset: Union[str, Path, List[Dict[str, Any]]],
-    vectordb: Union[Any, BaseVDBConnection],
-    rag_pipeline: Callable[[str], str],
-    top_k: int = 5,
-    query_fn: Optional[Callable] = None,
-    sample_fn: Optional[Callable] = None,
-) -> Dict[str, Any]:
-    """
-    Evaluate full RAG system (retrieval + generation).
-
-    Args:
-        qa_dataset: Path to JSONL file or list of Q/A dictionaries
-        vectordb: Vector database instance (BaseVDBConnection) or custom object
-        rag_pipeline: Function that takes a question and returns an answer
-        top_k: Number of top results to retrieve for evaluation
-        query_fn: Optional query function if using custom vector DB (deprecated)
-        sample_fn: Optional sample function if using custom vector DB (deprecated)
-
-    Returns:
-        Dictionary with retrieval metrics (generation metrics deferred)
-        
-    Raises:
-        ValidationError: If parameters or QA dataset structure is invalid
-    """
-    # Validate parameters
-    _validate_evaluate_params(qa_dataset, top_k)
-    
-    # Validate RAG pipeline
-    if not callable(rag_pipeline):
-        raise ValidationError("rag_pipeline must be a callable function")
-    
-    # Load Q/A dataset
-    if isinstance(qa_dataset, (str, Path)):
-        qa_dataset_path = Path(qa_dataset)
-        qa_pairs = []
-        with open(qa_dataset_path, "r", encoding="utf-8") as f:
-            for i, line in enumerate(f):
-                if line.strip():
-                    try:
-                        qa_pair = json.loads(line)
-                        _validate_qa_pair(qa_pair, i)
-                        qa_pairs.append(qa_pair)
-                    except json.JSONDecodeError as e:
-                        raise ValidationError(f"Invalid JSON in QA dataset at line {i+1}: {e}")
-    else:
-        qa_pairs = qa_dataset
-        # Validate all QA pairs
-        for i, qa_pair in enumerate(qa_pairs):
-            _validate_qa_pair(qa_pair, i)
-
-    if not qa_pairs:
-        raise ValidationError("QA dataset is empty")
-
-    logger.info(f"Loaded {len(qa_pairs)} Q/A pairs")
-
-    # Use vectordb directly if it's a BaseVDBConnection
-    if isinstance(vectordb, BaseVDBConnection):
-        vdb = vectordb
-    elif query_fn is not None:
-        # Fallback: create wrapper for custom functions
-        class CustomVDB(BaseVDBConnection):
-            def search(self, query=None, embedding=None, limit=5):
-                if query:
-                    results = query_fn(query, limit)
-                    # Normalize results
-                    normalized = []
-                    for result in results:
-                        if isinstance(result, dict):
-                            normalized.append({
-                                "text": result.get("text", ""),
-                                "metadata": result.get("metadata", {}),
-                                "score": result.get("score", result.get("similarity", None)),
-                                "id": result.get("id", None),
-                            })
-                        else:
-                            normalized.append({"text": str(result), "metadata": {}, "score": None})
-                    return normalized
-                return []
-            def sample_chunks(self, num_chunks):
-                if sample_fn:
-                    results = sample_fn(num_chunks)
-                    # Normalize results
-                    normalized = []
-                    for result in results:
-                        if isinstance(result, dict):
-                            normalized.append({
-                                "text": result.get("text", ""),
-                                "metadata": result.get("metadata", {}),
-                                "id": result.get("id", None),
-                            })
-                        else:
-                            normalized.append({"text": str(result), "metadata": {}})
-                    return normalized
-                return []
-        vdb = CustomVDB()
-    elif hasattr(vectordb, "query"):
-        vdb = vectordb
-    else:
-        raise ValidationError("vectordb must be a BaseVDBConnection instance or have query method")
-
-    # Query vector DB for each question (for retrieval evaluation)
-    logger.info(f"Evaluating retrieval with top_k={top_k}...")
-    retrieval_results = []
-    for qa_pair in tqdm(qa_pairs, desc="Evaluating retrieval", unit="query"):
-        question = qa_pair.get("question", "")
-        if not question:
-            retrieval_results.append([])
-            continue
-
-        retrieved = vdb.query(question, top_k=top_k)
-        retrieval_results.append(retrieved)
-
-    # Calculate retrieval metrics
-    logger.info("Calculating retrieval metrics...")
-    metrics_result = calculate_retrieval_metrics_full(
-        qa_pairs, retrieval_results, top_k=top_k
-    )
-
-    # Evaluate generation (placeholder for future work)
-    # Generation evaluation will use CRC-0.5B, GJ-0.5B, ASM-0.5B models
-    logger.info("Generation evaluation: deferred (future work with CRC-0.5B, GJ-0.5B, ASM-0.5B)")
-
-    aggregated = metrics_result["aggregated"]
-
-    # Return structured results
-    result = {
-        "retrieval": {
-            **aggregated,  # Flattened metrics
-            "aggregated": aggregated,  # Nested structure
-            "per_sample": metrics_result["per_sample"],
-        },
-        "generation": {
-            "note": "Generation evaluation models (CRC-0.5B, GJ-0.5B, ASM-0.5B) are incoming",
-        },
-    }
-
-    return result
-

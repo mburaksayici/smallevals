@@ -2,6 +2,25 @@
 
 from dash import html, dcc
 import dash_bootstrap_components as dbc
+import base64
+import os
+
+
+def get_logo_base64():
+    """Get the logo as a base64 encoded data URI."""
+    try:
+        # Get the path relative to this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))
+        logo_path = os.path.join(project_root, 'logo', 'smallevals_emoji_128_128.png')
+        
+        if os.path.exists(logo_path):
+            with open(logo_path, 'rb') as f:
+                encoded = base64.b64encode(f.read()).decode()
+                return f"data:image/png;base64,{encoded}"
+    except Exception as e:
+        print(f"Error loading logo: {e}")
+    return None
 
 
 def create_metric_card(label: str, value: str, help_text: str = None, color: str = "#667eea"):
@@ -92,27 +111,51 @@ def create_version_info_card(metadata: dict):
 
 def create_header():
     """Create the professional header with gradient background."""
+    logo_base64 = get_logo_base64()
+    
+    header_content = [
+        html.H1(
+            "smallevals",
+            style={
+                "margin": "0",
+                "fontSize": "2.5rem",
+                "fontWeight": "700",
+                "color": "white"
+            }
+        ),
+        html.P(
+            "Retrieval Evaluation Dashboard",
+            style={
+                "margin": "0.5rem 0 0 0",
+                "opacity": "0.9",
+                "fontSize": "1.1rem",
+                "color": "white"
+            }
+        )
+    ]
+    
+    # Add logo if available
+    if logo_base64:
+        header_content.insert(0, html.Img(
+            src=logo_base64,
+            alt="smallevals logo",
+            style={
+                "width": "48px",
+                "height": "48px",
+                "marginBottom": "1rem"
+            }
+        ))
+    
     return html.Div([
-        html.Div([
-            html.H1(
-                "📊 smallevals",
-                style={
-                    "margin": "0",
-                    "fontSize": "2.5rem",
-                    "fontWeight": "700",
-                    "color": "white"
-                }
-            ),
-            html.P(
-                "Retrieval Evaluation Dashboard",
-                style={
-                    "margin": "0.5rem 0 0 0",
-                    "opacity": "0.9",
-                    "fontSize": "1.1rem",
-                    "color": "white"
-                }
-            )
-        ], style={"padding": "2rem"})
+        html.Div(
+            header_content,
+            style={
+                "padding": "2rem",
+                "display": "flex",
+                "flexDirection": "column",
+                "alignItems": "center"
+            }
+        )
     ], style={
         "background": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
         "color": "white",

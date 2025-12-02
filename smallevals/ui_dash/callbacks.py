@@ -12,7 +12,6 @@ import plotly.express as px
 
 from smallevals.utils.results_manager import list_results, load_result, get_result_metadata, RESULTS_DIR
 from smallevals.ui_dash.ranking import (
-    calculate_metrics_from_df,
     filter_by_rank,
     get_rank_distribution,
     rank_by_metric,
@@ -80,6 +79,10 @@ def register_callbacks(app):
             
             # Compact version info (using config for display)
             version_info = html.Div([
+                html.Span([
+                    html.Strong("VDB: "),
+                    config.get('vector_db', 'N/A')
+                ], className="me-3"),
                 html.Span([
                     html.Strong("Model: "),
                     config.get('embedding_model', 'N/A')
@@ -496,7 +499,8 @@ def register_callbacks(app):
             filtered_df = pd.DataFrame(filtered_data)
             metadata = version_data.get('metadata', {})
             top_k = metadata.get('top_k', 5)
-            metrics = calculate_metrics_from_df(filtered_df, top_k=top_k)
+            # Use saved metrics from evaluation - never recalculate
+            metrics = metadata.get('metrics', {})
             
             html_content = generate_html_report(filtered_df, metrics, version_metadata=metadata, top_k=top_k)
             return dict(content=html_content, filename=f"report_{version_data.get('selected_version', 'unknown')}.html")
@@ -884,7 +888,23 @@ def register_callbacks(app):
 
 def render_metrics_tab(filtered_df, metadata, top_k, selected_version):
     """Render the metrics summary tab."""
-    metrics = calculate_metrics_from_df(filtered_df, top_k=top_k)
+    # Use saved metrics from evaluation - never recalculate
+    metrics = metadata.get('metrics', {})
+    
+    # Calculate simple counts from dataframe (these are not metrics, just statistics)
+    num_queries = len(filtered_df)
+    num_found = 0
+    num_not_found = 0
+    if 'chunk_position' in filtered_df.columns:
+        found_in_topk = filtered_df[filtered_df['chunk_position'].notna() & (filtered_df['chunk_position'] <= top_k)]
+        num_found = len(found_in_topk)
+        num_not_found = num_queries - len(filtered_df[filtered_df['chunk_position'].notna()])
+    
+    # Add counts to metrics dict for display
+    metrics_with_counts = dict(metrics)
+    metrics_with_counts['num_queries'] = num_queries
+    metrics_with_counts['num_found'] = num_found
+    metrics_with_counts['num_not_found'] = num_not_found
     
     hit_rate_key = f"hit_rate@{top_k}"
     precision_key = f"precision@{top_k}"
@@ -914,18 +934,21 @@ def render_metrics_tab(filtered_df, metadata, top_k, selected_version):
             if appearances >= 3 and rank1 < appearances * 0.3:
                 devil_chunks_count += 1
     
+    ndcg_key = f"ndcg@{top_k}"
+    
     main_metrics = dbc.Row([
-        dbc.Col(create_metric_card("MRR", f"{metrics.get('mrr', 0):.3f}", "Mean Reciprocal Rank"), width=3),
-        dbc.Col(create_metric_card(f"Hit Rate@{top_k}", f"{metrics.get(hit_rate_key, 0):.3f}", 
+        dbc.Col(create_metric_card("MRR", f"{metrics_with_counts.get('mrr', 0):.3f}", "Mean Reciprocal Rank"), width=3),
+        dbc.Col(create_metric_card(f"Hit Rate@{top_k}", f"{metrics_with_counts.get(hit_rate_key, 0):.3f}", 
                                    "Fraction of queries where relevant chunk was found in top-k"), width=3),
-        dbc.Col(create_metric_card(f"Precision@{top_k}", f"{metrics.get(precision_key, 0):.3f}", "Precision at K"), width=3),
-        dbc.Col(create_metric_card(f"Recall@{top_k}", f"{metrics.get(recall_key, 0):.3f}", "Recall at K"), width=3),
+        dbc.Col(create_metric_card(f"nDCG@{top_k}", f"{metrics_with_counts.get(ndcg_key, 0):.3f}", 
+                                   "Normalized Discounted Cumulative Gain - rewards ranking quality"), width=3),
+        dbc.Col(create_metric_card(f"Recall@{top_k}", f"{metrics_with_counts.get(recall_key, 0):.3f}", "Recall at K"), width=3),
     ], className="mb-4")
     
     stats_metrics = dbc.Row([
-        dbc.Col(create_metric_card("Total Queries", str(metrics.get('num_queries', 0))), width=3),
-        dbc.Col(create_metric_card("Found in Top-K", str(metrics.get('num_found', 0))), width=3),
-        dbc.Col(create_metric_card("Not Found", str(metrics.get('num_not_found', 0))), width=3),
+        dbc.Col(create_metric_card("Total Queries", str(metrics_with_counts.get('num_queries', 0))), width=3),
+        dbc.Col(create_metric_card("Found in Top-K", str(metrics_with_counts.get('num_found', 0))), width=3),
+        dbc.Col(create_metric_card("Not Found", str(metrics_with_counts.get('num_not_found', 0))), width=3),
         dbc.Col(create_metric_card("Word/Char Ratio", f"{word_char_ratio:.3f}", "Average word to character ratio"), width=3),
     ], className="mb-4")
     

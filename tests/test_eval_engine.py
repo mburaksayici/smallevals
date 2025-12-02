@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import tempfile
 
-from smallevals.eval.engine import generate_qa_from_vectordb, evaluate_retrievals, evaluate_rag
+from smallevals.eval.engine import generate_qa_from_vectordb, evaluate_retrievals
 from smallevals.exceptions import ValidationError
 
 
@@ -81,27 +81,3 @@ def test_evaluate_retrievals_with_file(chroma_db, sample_qa_pairs, tmp_path):
     assert "precision@5" in metrics
     assert "per_sample" in metrics
     assert len(metrics["per_sample"]) == 5
-
-
-def test_evaluate_rag_validation():
-    """Test input validation for evaluate_rag."""
-    # Mock vector DB
-    class MockVDB:
-        def query(self, question, top_k=5):
-            return [{"text": "result", "id": "chunk_1"}]
-    
-    mock_vdb = MockVDB()
-    qa_pairs = [{"question": "q1", "answer": "a1", "chunk_id": "chunk_1", "passage": "text1"}]
-    
-    # Test invalid rag_pipeline (not callable)
-    with pytest.raises(ValidationError):
-        evaluate_rag(qa_pairs, mock_vdb, rag_pipeline="not a function", top_k=5)
-    
-    # Test valid rag_pipeline
-    def rag_func(question):
-        return "answer"
-    
-    result = evaluate_rag(qa_pairs, mock_vdb, rag_pipeline=rag_func, top_k=5)
-    assert "retrieval" in result
-    assert "generation" in result
-

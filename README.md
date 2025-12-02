@@ -1,12 +1,12 @@
-# smallevals <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> - Small Language Models Evaluation Suite for RAG Systems
+# smallevals <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> - Small Language Models Evaluation Suite for RAG Systems
 
-A lightweight evaluation framework powered by tiny ( really tiny <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> ) 0.6B models — runs 100% locally on CPU/GPU/MPS, extremely fast and cheap.
+A lightweight evaluation framework powered by tiny ( really tiny <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> ) 0.6B models — runs 100% locally on CPU/GPU/MPS, extremely fast and cheap.
 
-Evaluation tools requiring LLM-as-a-judge, that costs/doesn't scale easily. <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> evaluates in seconds in GPU, in minutes in any CPU  <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32">!
+Evaluation tools requiring LLM-as-a-judge, that costs/doesn't scale easily. <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> evaluates in seconds in GPU, in minutes in any CPU  <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32">!
 
 ## Evaluate Retrieval
 
-Evaluation of RAG system includes retrieval and RAG stage, <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> attacks to test retrieval and RAG answers(in the near future)!
+Evaluation of RAG system includes retrieval and RAG stage, <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> attacks to test retrieval and RAG answers(in the near future)!
 
 ## Models
 
@@ -31,7 +31,7 @@ pip install smallevals
 
 Connect to your favourite Vector DB (Milvus, Elastic, PGVector, Chroma, Pinecone, FAISS, Weawiate), attach your favourite embeddings, generate questions, and visualise results!
 
-Under the hood, <img src="logo/smallevals_emoji.png" alt="logo" width="32" height="32"> generates question per chunk, and tries to retrieve it as a single-first relevant docs, calculate scores.
+Under the hood, <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> generates question per chunk, and tries to retrieve it as a single-first relevant docs, calculate scores.
 
 ```python
 from smallevals import evaluate_retrievals, SmallEvalsVDBConnection

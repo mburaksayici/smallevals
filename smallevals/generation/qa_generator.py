@@ -183,18 +183,6 @@ class QAGenerator:
 
         qa_pairs = self.generate_qa_batch(passages, max_retries=max_retries)
         
-        # Add metadata and chunk_id if available
-        for i, (chunk, metadata) in enumerate(zip(chunks, chunk_metadata)):
-            if i < len(qa_pairs):
-                if metadata:
-                    qa_pairs[i]["metadata"] = metadata
-                # Preserve chunk_id if present
-                if isinstance(chunk, dict):
-                    if "id" in chunk:
-                        qa_pairs[i]["chunk_id"] = chunk["id"]
-                    elif "metadata" in chunk and isinstance(chunk["metadata"], dict) and "chunk_id" in chunk["metadata"]:
-                        qa_pairs[i]["chunk_id"] = chunk["metadata"]["chunk_id"]
-
         return qa_pairs
 
 

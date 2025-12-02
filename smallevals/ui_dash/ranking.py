@@ -1,83 +1,20 @@
-"""Ranking and metrics calculation utilities for retrieval evaluation results."""
+"""
+Data manipulation utilities for retrieval evaluation results.
+
+IMPORTANT: This module ONLY manipulates DataFrames (filtering, sorting, slicing).
+It does NOT calculate metrics. Metrics are calculated once during evaluation 
+(in smallevals.eval.metrics) and saved to evaluation_metrics.json.
+
+The UI dashboard loads and displays these pre-calculated metrics to ensure consistency.
+
+Functions:
+- filter_by_rank: Filter dataframe by specific rank
+- get_rank_distribution: Count occurrences at each rank
+- rank_by_metric: Sort dataframe by a column
+"""
 
 import pandas as pd
 from typing import Dict, Any, Optional
-import numpy as np
-
-
-def calculate_metrics_from_df(df: pd.DataFrame, top_k: int = 5) -> Dict[str, Any]:
-    """
-    Calculate retrieval metrics from a results dataframe.
-    
-    Args:
-        df: DataFrame with columns including 'chunk_position' (rank where chunk was found)
-        top_k: Value of K for metrics
-        
-    Returns:
-        Dictionary with metrics: mrr, hit_rate@{top_k}, precision@{top_k}, recall@{top_k},
-        num_queries, num_found, num_not_found
-    """
-    if df.empty:
-        return {
-            'mrr': 0.0,
-            f'hit_rate@{top_k}': 0.0,
-            f'precision@{top_k}': 0.0,
-            f'recall@{top_k}': 0.0,
-            'num_queries': 0,
-            'num_found': 0,
-            'num_not_found': 0,
-        }
-    
-    # Ensure we have chunk_position column
-    if 'chunk_position' not in df.columns:
-        # If not present, assume all not found
-        return {
-            'mrr': 0.0,
-            f'hit_rate@{top_k}': 0.0,
-            f'precision@{top_k}': 0.0,
-            f'recall@{top_k}': 0.0,
-            'num_queries': len(df),
-            'num_found': 0,
-            'num_not_found': len(df),
-        }
-    
-    # Filter out NaN positions (chunks not found)
-    found_df = df[df['chunk_position'].notna()]
-    
-    # Calculate MRR (Mean Reciprocal Rank)
-    if len(found_df) > 0:
-        reciprocal_ranks = 1.0 / found_df['chunk_position']
-        mrr = reciprocal_ranks.mean()
-    else:
-        mrr = 0.0
-    
-    # Count queries found in top-k
-    found_in_topk = found_df[found_df['chunk_position'] <= top_k]
-    num_found_in_topk = len(found_in_topk)
-    num_queries = len(df)
-    num_found = len(found_df)
-    num_not_found = num_queries - num_found
-    
-    # Hit Rate@K: fraction of queries where relevant chunk found in top-k
-    hit_rate = num_found_in_topk / num_queries if num_queries > 0 else 0.0
-    
-    # Precision@K: fraction of retrieved items that are relevant (assuming 1 relevant per query)
-    # For single relevant item per query: precision@k = hit_rate@k
-    precision = hit_rate
-    
-    # Recall@K: fraction of relevant items retrieved (assuming 1 relevant per query)
-    # For single relevant item per query: recall@k = hit_rate@k
-    recall = hit_rate
-    
-    return {
-        'mrr': float(mrr),
-        f'hit_rate@{top_k}': float(hit_rate),
-        f'precision@{top_k}': float(precision),
-        f'recall@{top_k}': float(recall),
-        'num_queries': num_queries,
-        'num_found': num_found_in_topk,  # Return count found in top-k (not total found)
-        'num_not_found': num_not_found,
-    }
 
 
 def filter_by_rank(df: pd.DataFrame, rank: int) -> pd.DataFrame:
@@ -160,46 +97,3 @@ def rank_by_metric(df: pd.DataFrame, metric: str = "position", ascending: bool =
     df_sorted['_sort_key'] = df_sorted[sort_col].fillna(float('inf') if ascending else float('-inf'))
     
     return df_sorted.sort_values('_sort_key', ascending=ascending).drop(columns=['_sort_key'])
-
-
-def calculate_per_query_metrics(df: pd.DataFrame, top_k: int = 5) -> pd.DataFrame:
-    """
-    Calculate per-query metrics and add them as columns to the dataframe.
-    
-    Args:
-        df: Results dataframe with 'chunk_position' column
-        top_k: Value of K for metrics
-        
-    Returns:
-        DataFrame with additional metric columns: 'mrr', 'hit_rate', 'precision', 'recall'
-    """
-    result_df = df.copy()
-    
-    if 'chunk_position' not in df.columns:
-        result_df['mrr'] = 0.0
-        result_df['hit_rate'] = 0.0
-        result_df['precision'] = 0.0
-        result_df['recall'] = 0.0
-        return result_df
-    
-    # Calculate MRR per query (reciprocal rank)
-    def calc_mrr(position):
-        if pd.isna(position):
-            return 0.0
-        return 1.0 / float(position)
-    
-    result_df['mrr'] = result_df['chunk_position'].apply(calc_mrr)
-    
-    # Calculate hit_rate per query (1 if found in top-k, 0 otherwise)
-    def calc_hit_rate(position):
-        if pd.isna(position):
-            return 0.0
-        return 1.0 if position <= top_k else 0.0
-    
-    result_df['hit_rate'] = result_df['chunk_position'].apply(calc_hit_rate)
-    
-    # For single relevant item per query, precision and recall equal hit_rate
-    result_df['precision'] = result_df['hit_rate']
-    result_df['recall'] = result_df['hit_rate']
-    
-    return result_df

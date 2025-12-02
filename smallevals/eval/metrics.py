@@ -1,4 +1,15 @@
-"""Retrieval metrics calculation and aggregation."""
+"""
+Retrieval metrics calculation and aggregation.
+
+IMPORTANT: This is the SINGLE SOURCE OF TRUTH for all metric calculations.
+Metrics are calculated here during evaluation and saved to evaluation_metrics.json.
+The UI and reports load these pre-calculated metrics - they never recalculate.
+
+This ensures consistency across:
+- evaluation_metrics.json (saved during evaluation)
+- report.html (generated during evaluation)
+- UI dashboard (displays saved metrics)
+"""
 
 from typing import List, Dict, Any, Optional
 import statistics
@@ -10,6 +21,10 @@ from smallevals.utils.logger import logger
 def precision_at_k(retrieved: List[Any], relevant: List[Any], k: int) -> float:
     """
     Calculate Precision@K.
+    
+    .. deprecated::
+        Precision@K is partially deprecated. Consider using nDCG@K instead,
+        which provides better ranking quality assessment with position discounting.
 
     Args:
         retrieved: List of retrieved items (top-k)
@@ -19,17 +34,21 @@ def precision_at_k(retrieved: List[Any], relevant: List[Any], k: int) -> float:
     Returns:
         Precision@K score (0.0 to 1.0)
     """
-    if not retrieved or k == 0:
-        return 0.0
-
-    top_k = retrieved[:k]
-    relevant_set = set(relevant) if relevant else set()
+    warnings.warn(
+        "precision_at_k is partially deprecated. Consider using ndcg_at_k instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     
-    if not relevant_set:
+    if k == 0:
         return 0.0
 
+    relevant_set = set(relevant or [])
+    
+    top_k = retrieved[:k]
     relevant_retrieved = sum(1 for item in top_k if item in relevant_set)
-    return relevant_retrieved / min(len(top_k), k)
+
+    return relevant_retrieved / k
 
 
 def recall_at_k(retrieved: List[Any], relevant: List[Any], k: int) -> float:
@@ -100,29 +119,53 @@ def hit_rate_at_k(retrieved: List[Any], relevant: List[Any], k: int) -> float:
     return 1.0 if (relevant_set & retrieved_set) else 0.0
 
 
-def _extract_chunk_id(chunk: Dict[str, Any]) -> Optional[str]:
+def ndcg_at_k(retrieved: List[Any], relevant: List[Any], k: int) -> float:
     """
-    Extract chunk ID from a chunk dictionary.
+    Calculate Normalized Discounted Cumulative Gain (nDCG@K).
     
+    nDCG provides a ranking quality metric that gives higher weight to relevant
+    items appearing at the top of the retrieval list. It uses logarithmic position
+    discounting to penalize relevant items that appear lower in the ranking.
+    
+    DCG@K = sum(relevance_i / log2(position_i + 1)) for i in [1, k]
+    nDCG@K = DCG@K / IDCG@K (ideal DCG with all relevant items at top)
+
     Args:
-        chunk: Chunk dictionary
-        
+        retrieved: List of retrieved items (top-k)
+        relevant: List of relevant items
+        k: Value of K
+
     Returns:
-        Chunk ID string or None if not found
+        nDCG@K score (0.0 to 1.0)
     """
-    if not isinstance(chunk, dict):
-        return None
+    if not relevant or not retrieved or k == 0:
+        return 0.0
     
-    # Try "id" field first
-    if "id" in chunk and chunk["id"]:
-        return str(chunk["id"])
+    import math
     
-    # Try metadata["chunk_id"]
-    if "metadata" in chunk and isinstance(chunk["metadata"], dict):
-        if "chunk_id" in chunk["metadata"]:
-            return str(chunk["metadata"]["chunk_id"])
+    relevant_set = set(relevant)
+    top_k = retrieved[:k]
     
-    return None
+    # Calculate DCG@K
+    dcg = 0.0
+    for i, item in enumerate(top_k, start=1):
+        if item in relevant_set:
+            # Binary relevance: 1 if relevant, 0 otherwise
+            # Discount by log2(position + 1)
+            dcg += 1.0 / math.log2(i + 1)
+    
+    # Calculate Ideal DCG (IDCG) - all relevant items at top positions
+    # For binary relevance, IDCG is sum of 1/log2(i+1) for min(k, num_relevant) positions
+    num_relevant = len(relevant_set)
+    idcg = 0.0
+    for i in range(1, min(k, num_relevant) + 1):
+        idcg += 1.0 / math.log2(i + 1)
+    
+    # Normalize
+    if idcg == 0.0:
+        return 0.0
+    
+    return dcg / idcg
 
 
 def calculate_retrieval_metrics(
@@ -131,61 +174,44 @@ def calculate_retrieval_metrics(
     top_k: int = 5,
 ) -> Dict[str, float]:
     """
-    Calculate all retrieval metrics for a single query using chunk ID matching.
+    Calculate all retrieval metrics for a single query using VDB's ID.
 
     Args:
-        retrieved_chunks: List of retrieved chunk dictionaries
-        relevant_chunk: Relevant chunk dictionary (ground truth) with "chunk_id" or "id"
+        retrieved_chunks: List of retrieved chunk dictionaries with "id" field
+        relevant_chunk: Relevant chunk dictionary with "id" field
         top_k: Value of K for metrics
 
     Returns:
         Dictionary with metric scores
     """
-    # Extract chunk IDs from retrieved chunks
-    retrieved_ids = []
-    for chunk in retrieved_chunks:
-        chunk_id = _extract_chunk_id(chunk)
-        if chunk_id:
-            retrieved_ids.append(chunk_id)
-        else:
-            logger.warning("Retrieved chunk missing ID, skipping from metrics")
+    # Extract VDB's IDs - simple and direct
+    retrieved_ids = [chunk.get("id", "") for chunk in retrieved_chunks]
+    relevant_id = relevant_chunk.get("id", "")
     
-    # Extract relevant chunk ID
-    relevant_id = _extract_chunk_id(relevant_chunk)
-    
-    # Fallback to text matching if IDs not available (with warning)
     if not relevant_id:
-        # Try to get from qa_pair structure (chunk_id field)
-        if "chunk_id" in relevant_chunk:
-            relevant_id = str(relevant_chunk["chunk_id"])
-        else:
-            # Fallback to text matching
-            warnings.warn(
-                "No chunk_id found in relevant_chunk, falling back to text matching. "
-                "This is deprecated - ensure chunk_id is provided for accurate metrics.",
-                DeprecationWarning,
-                stacklevel=2
-            )
-            retrieved_texts = [chunk.get("text", "") if isinstance(chunk, dict) else str(chunk) for chunk in retrieved_chunks]
-            relevant_text = relevant_chunk.get("text", "") if isinstance(relevant_chunk, dict) else str(relevant_chunk)
-            relevant_list = [relevant_text] if relevant_text else []
-            
-            return {
-                f"precision@{top_k}": precision_at_k(retrieved_texts, relevant_list, top_k),
-                f"recall@{top_k}": recall_at_k(retrieved_texts, relevant_list, top_k),
-                "mrr": mean_reciprocal_rank(retrieved_texts, relevant_list),
-                f"hit_rate@{top_k}": hit_rate_at_k(retrieved_texts, relevant_list, top_k),
-            }
+        logger.warning("No ID found in relevant_chunk")
+        return {
+            f"precision@{top_k}": 0.0,
+            f"recall@{top_k}": 0.0,
+            "mrr": 0.0,
+            f"hit_rate@{top_k}": 0.0,
+            f"ndcg@{top_k}": 0.0,
+        }
     
-    # Use chunk ID matching
-    relevant_list = [relevant_id] if relevant_id else []
+    # Use VDB's ID matching
+    relevant_list = [relevant_id]
     
-    # Calculate metrics
+    # Calculate metrics (suppress deprecation warning for precision_at_k)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        precision_score = precision_at_k(retrieved_ids, relevant_list, top_k)
+    
     metrics = {
-        f"precision@{top_k}": precision_at_k(retrieved_ids, relevant_list, top_k),
+        f"precision@{top_k}": precision_score,
         f"recall@{top_k}": recall_at_k(retrieved_ids, relevant_list, top_k),
         "mrr": mean_reciprocal_rank(retrieved_ids, relevant_list),
         f"hit_rate@{top_k}": hit_rate_at_k(retrieved_ids, relevant_list, top_k),
+        f"ndcg@{top_k}": ndcg_at_k(retrieved_ids, relevant_list, top_k),
     }
 
     return metrics
@@ -229,10 +255,10 @@ def calculate_retrieval_metrics_full(
     top_k: int = 5,
 ) -> Dict[str, Any]:
     """
-    Calculate retrieval metrics for entire dataset using chunk ID matching.
+    Calculate retrieval metrics for entire dataset using VDB's ID.
 
     Args:
-        qa_dataset: List of Q/A pairs with "chunk_id" field (ground truth) or "passage" for backward compatibility
+        qa_dataset: List of Q/A pairs with "id" field (VDB's ID)
         retrieval_results: List of retrieval results for each Q/A pair
         top_k: Value of K for metrics
 
@@ -240,29 +266,17 @@ def calculate_retrieval_metrics_full(
         Dictionary with aggregated and per-sample metrics
     """
     per_sample_metrics = []
-
     for qa_pair, retrieved in zip(qa_dataset, retrieval_results):
-        # Build relevant_chunk dict with chunk_id if available
-        relevant_chunk = {}
+        # Use VDB's ID from qa_pair
+        relevant_chunk = {"id": qa_pair.get("id", "")}
         
-        # Prefer chunk_id from qa_pair
-        if "chunk_id" in qa_pair:
-            relevant_chunk["chunk_id"] = qa_pair["chunk_id"]
-        # Also include id field for compatibility
-        if "chunk_id" in qa_pair:
-            relevant_chunk["id"] = qa_pair["chunk_id"]
-        
-        # Include passage for backward compatibility (fallback to text matching)
+        # Keep passage for reference (but not used for matching)
         if "passage" in qa_pair:
             relevant_chunk["text"] = qa_pair["passage"]
         
-        # Include metadata if present
-        if "metadata" in qa_pair:
-            relevant_chunk["metadata"] = qa_pair["metadata"]
-        
-        # Skip if no identifying information
-        if not relevant_chunk:
-            logger.warning("QA pair missing chunk_id or passage, skipping")
+        # Skip if no ID
+        if not relevant_chunk["id"]:
+            logger.warning("QA pair missing id, skipping")
             continue
 
         sample_metrics = calculate_retrieval_metrics(

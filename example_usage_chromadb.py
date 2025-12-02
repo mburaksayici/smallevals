@@ -17,8 +17,8 @@ def main():
     
     if COLLECTION_NAME is None:
         collections = chroma_client.list_collections()
-        COLLECTION_NAME = collections[0].name
-    
+        COLLECTION_NAME = "paragraphs"
+
     smallevals_vdb = SmallEvalsVDBConnection(
         connection=chroma_client,
         collection=COLLECTION_NAME,
@@ -30,7 +30,7 @@ def main():
     smallevals_result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=10,
-        n_chunks=200,
+        n_chunks=10,
         device=None,
         results_folder=None
     )

@@ -34,7 +34,7 @@ def _parse_retrieved_ids(retrieved_ids_str: str) -> List[str]:
     except Exception:
         return []
 
-
+## TO DO : Topic Clustering Later on 
 def analyze_query_similarity(
     df: pd.DataFrame,
     embedding_model_name: str = "intfloat/e5-small-v2",

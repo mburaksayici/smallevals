@@ -153,7 +153,7 @@ app.layout = html.Div([
             dbc.Tab(label="📈 Rank Distribution", tab_id="distribution", id="tab-distribution"),
             dbc.Tab(label="📏 Chunk Length Analysis", tab_id="chunk-length", id="tab-chunk-length"),
             dbc.Tab(label="📊 Word-Char Ratio Analysis", tab_id="word-char", id="tab-word-char"),
-            dbc.Tab(label="🔗 Query Similarity Analysis", tab_id="query-similarity", id="tab-query-similarity"),
+            #dbc.Tab(label="🔗 Query Similarity Analysis", tab_id="query-similarity", id="tab-query-similarity"),
             dbc.Tab(label="👹 Devil Chunks Analysis", tab_id="devil-chunks", id="tab-devil-chunks"),
         ], id="main-tabs", active_tab="metrics"),
         html.Div(id='tab-content', className="mt-4")

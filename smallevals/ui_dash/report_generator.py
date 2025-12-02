@@ -4,6 +4,26 @@ import pandas as pd
 from typing import Dict, Any
 from datetime import datetime
 from typing import *
+import base64
+import os
+
+
+def get_logo_base64():
+    """Get the logo as a base64 encoded data URI."""
+    try:
+        # Get the path relative to this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))
+        logo_path = os.path.join(project_root, 'logo', 'smallevals_emoji_128_128.png')
+        
+        if os.path.exists(logo_path):
+            with open(logo_path, 'rb') as f:
+                encoded = base64.b64encode(f.read()).decode()
+                return f"data:image/png;base64,{encoded}"
+    except Exception as e:
+        print(f"Error loading logo: {e}")
+    return None
+
 
 def generate_html_report(
     df: pd.DataFrame,
@@ -24,6 +44,7 @@ def generate_html_report(
         HTML string
     """
     version_metadata = version_metadata or {}
+    logo_base64 = get_logo_base64()
     
     # Generate summary statistics
     total_queries = metrics.get('num_queries', len(df))
@@ -31,6 +52,7 @@ def generate_html_report(
     hit_rate_key = f'hit_rate@{top_k}'
     precision_key = f'precision@{top_k}'
     recall_key = f'recall@{top_k}'
+    ndcg_key = f'ndcg@{top_k}'
     
     # Create rank distribution and calculate statistics from DataFrame
     rank_dist = {}
@@ -151,6 +173,13 @@ def generate_html_report(
             padding-bottom: 30px;
             border-bottom: 2px solid var(--border-color);
             position: relative;
+        }}
+        
+        .header-logo {{
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            display: block;
         }}
         
         .header::after {{
@@ -561,6 +590,7 @@ def generate_html_report(
 <body>
     <div class="container">
         <div class="header">
+            {f'<img src="{logo_base64}" alt="smallevals logo" class="header-logo">' if logo_base64 else ''}
             <h1>smallevals Retrieval Evaluation Report</h1>
             <p class="subtitle">Comprehensive Analysis of Vector Database Performance</p>
         </div>
@@ -572,6 +602,8 @@ def generate_html_report(
             </div>
             {f'<div class="metadata-item"><span class="metadata-label">Version</span><span class="metadata-value">{version_metadata.get("selected_version", "Unknown")}</span></div>' if version_metadata.get('selected_version') else ''}
             {f'<div class="metadata-item"><span class="metadata-label">Top-K</span><span class="metadata-value">{top_k}</span></div>' if top_k else ''}
+            {f'<div class="metadata-item"><span class="metadata-label">Vector DB</span><span class="metadata-value">{version_metadata.get("vector_db", "Unknown")}</span></div>' if version_metadata.get('vector_db') else ''}
+            {f'<div class="metadata-item"><span class="metadata-label">Embedding Model</span><span class="metadata-value">{version_metadata.get("embedding_model", "Unknown")}</span></div>' if version_metadata.get('embedding_model') else ''}
             {f'<div class="metadata-item"><span class="metadata-label">Description</span><span class="metadata-value">{version_metadata.get("description", "")}</span></div>' if version_metadata.get('description') else ''}
         </div>
         
@@ -586,8 +618,8 @@ def generate_html_report(
                 <div class="value">{metrics.get(hit_rate_key, 0):.4f}</div>
             </div>
             <div class="metric-card precision">
-                <h3>Precision@{top_k}</h3>
-                <div class="value">{metrics.get(precision_key, 0):.4f}</div>
+                <h3>nDCG@{top_k}</h3>
+                <div class="value">{metrics.get(ndcg_key, 0):.4f}</div>
             </div>
             <div class="metric-card recall">
                 <h3>Recall@{top_k}</h3>

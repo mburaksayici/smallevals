@@ -57,6 +57,10 @@ class SmallEvalsVDBConnection:
         else:
             self.embedding_model = embedding
         
+        # Detect VDB type before creating connection
+        self.vdb_type = self._detect_connection_type(connection)
+        logger.info(f"Detected VDB type: {self.vdb_type}")
+        
         # Auto-detect and create appropriate connection
         self.connection = self._auto_detect_and_create(connection, collection)
     
@@ -64,8 +68,7 @@ class SmallEvalsVDBConnection:
         self, connection: Any, collection: str
     ) -> BaseVDBConnection:
         """Auto-detect vector database type and create appropriate connection."""
-        connection_type = self._detect_connection_type(connection)
-        logger.info(f"Detected connection type: {connection_type}")
+        connection_type = self.vdb_type
         
         if connection_type == "chromadb":
             return self._create_chroma_connection(connection, collection)

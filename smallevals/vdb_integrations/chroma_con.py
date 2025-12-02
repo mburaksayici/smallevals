@@ -268,33 +268,30 @@ class ChromaConnection(BaseVDBConnection):
             List of dictionaries with chunk information.
         """
         import random
-        # Get all data from collection
-        all_data = self.collection.get()
-        
-        if not all_data.get("ids") or len(all_data["ids"]) == 0:
+
+        # Step 1: Fetch only IDs (VERY LIGHTWEIGHT)
+        all_ids = self.collection.get(include=[])["ids"]
+
+        if not all_ids:
             return []
-        
-        total_docs = len(all_data["ids"])
-        num_to_sample = min(num_chunks, total_docs)
-        
-        # Sample random indices
-        if num_to_sample >= total_docs:
-            indices = list(range(total_docs))
-        else:
-            indices = random.sample(range(total_docs), num_to_sample)
-        
-        # Build results
-        chunks = []
-        documents = all_data.get("documents", [])
-        metadatas = all_data.get("metadatas", [])
-        ids = all_data.get("ids", [])
-        
-        for idx in indices:
-            chunk = {
-                "text": documents[idx] if idx < len(documents) else "",
-                "metadata": metadatas[idx] if idx < len(metadatas) and metadatas[idx] else {},
-                "id": ids[idx] if idx < len(ids) else None,
-            }
-            chunks.append(chunk)
-        
-        return chunks
+
+        # Step 2: Sample IDs
+        sampled_ids = random.sample(all_ids, min(num_chunks, len(all_ids)))
+
+        # Step 3: Fetch only sampled documents
+        data = self.collection.get(ids=sampled_ids)
+
+        documents = data.get("documents", [])
+        metadatas = data.get("metadatas", [])
+        ids = data.get("ids", [])
+
+        # Step 4: Build output
+        results = []
+        for i in range(len(ids)):
+            results.append({
+                "text": documents[i] if i < len(documents) else "",
+                "metadata": metadatas[i] if i < len(metadatas) and metadatas[i] else {},
+                "id": ids[i],
+            })
+
+        return results
