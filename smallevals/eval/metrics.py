@@ -187,7 +187,7 @@ def calculate_retrieval_metrics(
     # Extract VDB's IDs - simple and direct
     retrieved_ids = [chunk.get("id", "") for chunk in retrieved_chunks]
     relevant_id = relevant_chunk.get("id", "")
-    
+
     if not relevant_id:
         logger.warning("No ID found in relevant_chunk")
         return {
@@ -197,7 +197,6 @@ def calculate_retrieval_metrics(
             f"hit_rate@{top_k}": 0.0,
             f"ndcg@{top_k}": 0.0,
         }
-    
     # Use VDB's ID matching
     relevant_list = [relevant_id]
     
@@ -266,7 +265,6 @@ def calculate_retrieval_metrics_full(
         Dictionary with aggregated and per-sample metrics
     """
     per_sample_metrics = []
-    
     for qa_pair, retrieved in zip(qa_dataset, retrieval_results):
         # Use VDB's ID from qa_pair
         relevant_chunk = {"id": qa_pair.get("id", "")}

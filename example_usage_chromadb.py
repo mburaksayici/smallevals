@@ -2,6 +2,7 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
 
+n_chunks = 298
 
 def main():
     CHROMADB_DIR = "./tests/assets/test_vdbs/chroma"
@@ -30,7 +31,7 @@ def main():
     smallevals_result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=10,
-        n_chunks=10,
+        n_chunks=n_chunks,
         device=None,
         results_folder=None
     )

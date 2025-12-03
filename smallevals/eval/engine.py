@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Union, Callable
 from tqdm import tqdm
 import pandas as pd
+import ast
 
 from smallevals.vdb_integrations.base import BaseVDBConnection
 from smallevals.generation.qa_generator import QAGenerator
@@ -119,12 +120,26 @@ def generate_qa_from_vectordb(
     qa_generator = QAGenerator(device=device, batch_size=batch_size)
 
     qa_pairs = qa_generator.generate_from_chunks(chunks, max_retries=1)
-    # Add VDB IDs to qa_pairs (QA generator doesn't know about VDB IDs)
-    for i, (qa_pair, chunk) in enumerate(zip(qa_pairs, chunks)):
-        if isinstance(chunk, dict) and "id" in chunk:
-            qa_pair["id"] = chunk["id"]
     
-    logger.info(f"Generated {len(qa_pairs)} Q/A pairs")
+    # NOTE: qa_pairs may be shorter than chunks if some generations failed
+    # We need to match qa_pairs back to their original chunks by text content
+    
+    # Create a mapping of passage text to chunk for ID assignment
+    chunk_map = {}
+    for chunk in chunks:
+        if isinstance(chunk, dict) and "text" in chunk:
+            # Use text as key to find the original chunk
+            chunk_map[chunk["text"]] = chunk
+    
+    # Add VDB IDs to qa_pairs by matching passage text
+    for qa_pair in qa_pairs:
+        passage_text = qa_pair.get("passage", "")
+        if passage_text in chunk_map:
+            chunk = chunk_map[passage_text]
+            if "id" in chunk:
+                qa_pair["id"] = chunk["id"]
+    
+    logger.info(f"Generated {len(qa_pairs)} Q/A pairs (from {len(chunks)} chunks)")
 
     # Save to file if output specified
     if output:
@@ -390,6 +405,224 @@ def evaluate_retrievals(
         "qa_pairs_path": str(result_path / "qa_pairs.jsonl"),
         "results_csv_path": str(result_path / "retrieval_results.csv"),
         "html_report_path": str(result_path / "report.html"),
+        "dataframe": results_df,
+        "num_qa_pairs": len(qa_pairs),
+    }
+
+
+def recalculate_metrics_from_eval_folder(
+    eval_folder: Union[str, Path],
+    overwrite: bool = True,
+) -> Dict[str, Any]:
+    """
+    Recalculate metrics and regenerate reports from an existing evaluation folder.
+    
+    This function is useful for fixing metrics that were calculated incorrectly
+    in a previous version of the code, or for regenerating reports with updated
+    templates.
+    
+    Args:
+        eval_folder: Path to the evaluation folder (e.g., "smallevals_results/eval_4a290bad")
+        overwrite: Whether to overwrite existing metrics and report files
+        
+    Returns:
+        Dictionary with:
+        - config: Original configuration
+        - results_path: Path to results folder
+        - metrics: Recalculated metrics
+        - old_metrics: Original (incorrect) metrics for comparison
+        - qa_pairs_path: Path to qa_pairs.jsonl
+        - results_csv_path: Path to retrieval_results.csv
+        - html_report_path: Path to updated report.html
+        
+    Raises:
+        ValueError: If eval folder doesn't exist or is missing required files
+    """
+    from smallevals.ui_dash.report_generator import generate_html_report
+    from smallevals.utils.results_manager import save_evaluation_results
+    
+    eval_path = Path(eval_folder)
+    
+    # Validate folder exists
+    if not eval_path.exists():
+        raise ValueError(f"Evaluation folder does not exist: {eval_path}")
+    
+    logger.info("=" * 60)
+    logger.info(f"Recalculating Metrics for: {eval_path.name}")
+    logger.info("=" * 60)
+    
+    # Load existing files
+    qa_pairs_path = eval_path / "qa_pairs.jsonl"
+    results_csv_path = eval_path / "retrieval_results.csv"
+    metadata_path = eval_path / "metadata.json"
+    
+    # Validate required files exist
+    if not qa_pairs_path.exists():
+        raise ValueError(f"Missing qa_pairs.jsonl in {eval_path}")
+    if not results_csv_path.exists():
+        raise ValueError(f"Missing retrieval_results.csv in {eval_path}")
+    
+    # Load QA pairs
+    logger.info("Loading QA pairs...")
+    qa_pairs = []
+    with open(qa_pairs_path, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                qa_pairs.append(json.loads(line))
+    logger.info(f"Loaded {len(qa_pairs)} QA pairs")
+    
+    # Load results CSV
+    logger.info("Loading retrieval results...")
+    results_df = pd.read_csv(results_csv_path)
+    logger.info(f"Loaded {len(results_df)} retrieval results")
+    
+    # Load metadata (if exists)
+    old_metrics = {}
+    config = {}
+    if metadata_path.exists():
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+            old_metrics = metadata.get("metrics", {})
+            config = metadata.get("config", {})
+    
+    # Extract top_k from config or infer from data
+    top_k = config.get("top_k", 10)
+    
+    # Reconstruct retrieval_results from CSV
+    logger.info("Reconstructing retrieval results from CSV...")
+    retrieval_results = []
+    
+    for idx, row in results_df.iterrows():
+        # Parse retrieved_docs and retrieved_ids from CSV
+        # These are stored as string representations of lists
+        retrieved_docs_str = row.get("retrieved_docs", "[]")
+        retrieved_ids_str = row.get("retrieved_ids", "[]")
+        
+        try:
+            # Use ast.literal_eval to safely parse the list strings
+            retrieved_docs = ast.literal_eval(retrieved_docs_str)
+            retrieved_ids = ast.literal_eval(retrieved_ids_str)
+        except (ValueError, SyntaxError) as e:
+            logger.warning(f"Failed to parse row {idx}: {e}")
+            retrieval_results.append([])
+            continue
+        
+        # Reconstruct list of dicts matching the format expected by metrics
+        retrieved = []
+        for doc, doc_id in zip(retrieved_docs, retrieved_ids):
+            retrieved.append({
+                "text": doc,
+                "id": doc_id,
+            })
+        
+        retrieval_results.append(retrieved)
+    
+    logger.info(f"Reconstructed {len(retrieval_results)} retrieval result sets")
+    
+    # Recalculate metrics for main top_k
+    logger.info("Recalculating metrics...")
+    metrics_result = calculate_retrieval_metrics_full(
+        qa_pairs, retrieval_results, top_k=top_k
+    )
+    aggregated = metrics_result["aggregated"]
+    
+    # Also calculate metrics for top_k=1
+    logger.info("Calculating Top-1 metrics...")
+    metrics_result_top1 = calculate_retrieval_metrics_full(
+        qa_pairs, retrieval_results, top_k=1
+    )
+    aggregated_top1 = metrics_result_top1["aggregated"]
+    
+    # Merge top-1 metrics into aggregated metrics
+    aggregated.update(aggregated_top1)
+    
+    # Print comparison
+    logger.info("\n" + "=" * 60)
+    logger.info("Metrics Comparison")
+    logger.info("=" * 60)
+    
+    if old_metrics:
+        for key in sorted(aggregated.keys()):
+            old_val = old_metrics.get(key, 0.0)
+            new_val = aggregated.get(key, 0.0)
+            diff = new_val - old_val
+            
+            if abs(diff) > 0.001:
+                logger.info(f"{key:20s}: {old_val:8.4f} → {new_val:8.4f} (Δ {diff:+.4f})")
+            else:
+                logger.info(f"{key:20s}: {new_val:8.4f} (unchanged)")
+    else:
+        for key, val in sorted(aggregated.items()):
+            logger.info(f"{key:20s}: {val:8.4f}")
+    
+    # Regenerate HTML report
+    logger.info("\nRegenerating HTML report...")
+    version_metadata = {
+        "selected_version": eval_path.name,
+        "description": f"Recalculated metrics for evaluation with top_k={top_k}",
+        **config
+    }
+    html_report = generate_html_report(
+        df=results_df,
+        metrics=aggregated,
+        version_metadata=version_metadata,
+        top_k=top_k
+    )
+    
+    # Save updated results if overwrite is True
+    if overwrite:
+        logger.info("Saving updated metrics and report...")
+        
+        # Update metadata
+        updated_metadata = {
+            "created_at": metadata.get("created_at") if metadata_path.exists() else None,
+            "recalculated_at": pd.Timestamp.now().isoformat(),
+            "config": config,
+            "metrics": aggregated,
+            "old_metrics": old_metrics,  # Keep for reference
+        }
+        
+        # Save updated metadata
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            json.dump(updated_metadata, f, indent=2, ensure_ascii=False)
+        
+        # Save updated metrics
+        metrics_path = eval_path / "evaluation_metrics.json"
+        with open(metrics_path, "w", encoding="utf-8") as f:
+            json.dump(aggregated, f, indent=2, ensure_ascii=False)
+        
+        # Save updated HTML report
+        report_path = eval_path / "report.html"
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(html_report)
+        
+        logger.info(f"✅ Updated files saved to: {eval_path}")
+    else:
+        logger.info("Skipping save (overwrite=False)")
+    
+    # Print summary
+    print("\n" + "=" * 60)
+    print("✅ Metrics Recalculation Complete!")
+    print("=" * 60)
+    print(f"Folder: {eval_path}")
+    print(f"\nRecalculated Metrics:")
+    print(f"  Hit Rate@{top_k}: {aggregated.get(f'hit_rate@{top_k}', 0):.4f}")
+    print(f"  Hit Rate@1: {aggregated.get('hit_rate@1', 0):.4f}")
+    print(f"  Precision@{top_k}: {aggregated.get(f'precision@{top_k}', 0):.4f}")
+    print(f"  Recall@{top_k}: {aggregated.get(f'recall@{top_k}', 0):.4f}")
+    print(f"  Recall@1: {aggregated.get('recall@1', 0):.4f}")
+    print(f"  MRR: {aggregated.get('mrr', 0):.4f}")
+    print(f"  nDCG@{top_k}: {aggregated.get(f'ndcg@{top_k}', 0):.4f}")
+    print("=" * 60 + "\n")
+    
+    return {
+        "config": config,
+        "results_path": str(eval_path),
+        "metrics": aggregated,
+        "old_metrics": old_metrics,
+        "qa_pairs_path": str(qa_pairs_path),
+        "results_csv_path": str(results_csv_path),
+        "html_report_path": str(eval_path / "report.html"),
         "dataframe": results_df,
         "num_qa_pairs": len(qa_pairs),
     }

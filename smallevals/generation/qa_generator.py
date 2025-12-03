@@ -113,9 +113,10 @@ class QAGenerator:
             prompts, max_new_tokens=7000, temperature=0.0
         )
 
-        # Parse responses
+        # Parse responses - skip failed generations entirely
         results = []
-        failed_indices = []
+        failed_count = 0
+        
         for i, (passage, response) in enumerate(zip(passages, responses)):
             parsed = parse_json_response(response)
             
@@ -126,22 +127,21 @@ class QAGenerator:
                     "passage": passage,
                 })
             else:
-                failed_indices.append(i)
                 # Retry if parsing failed
+                retry_success = False
                 if max_retries > 0:
                     logger.debug(f"Retrying generation for passage {i}")
                     retry_result = self.generate_qa(passage)
                     if retry_result:
                         results.append(retry_result)
-                    else:
-                        logger.warning(f"Failed to generate QA for passage {i} after retry")
-                        continue
-                else:
-                    logger.warning(f"Failed to generate QA for passage {i}")
-                    continue
+                        retry_success = True
+                
+                if not retry_success:
+                    logger.warning(f"Skipping passage {i} - failed to generate QA")
+                    failed_count += 1
 
-        if failed_indices:
-            logger.warning(f"Failed to generate QA for {len(failed_indices)} passages: {failed_indices}")
+        if failed_count > 0:
+            logger.warning(f"Skipped {failed_count} passages due to failed QA generation")
 
         return results
 

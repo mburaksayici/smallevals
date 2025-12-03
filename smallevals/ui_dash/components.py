@@ -11,8 +11,8 @@ def get_logo_base64():
     try:
         # Get the path relative to this file
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(current_dir))
-        logo_path = os.path.join(project_root, 'logo', 'smallevals_emoji_128_128.png')
+        smallevals_root = os.path.dirname(current_dir)  # Go up from ui_dash to smallevals
+        logo_path = os.path.join(smallevals_root, 'logo', 'smallevals_emoji_128_128.png')
         
         if os.path.exists(logo_path):
             with open(logo_path, 'rb') as f:

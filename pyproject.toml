@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Small Language Models Evaluation Suite for RAG Systems"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Mehmet Burak Sayıcı", email = "mburaksayici@gmail.com"}
 ]
@@ -17,7 +17,6 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -74,6 +73,13 @@ test = [
     "pyarrow>=10.0.0",
 ]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["smallevals*"]
+exclude = ["tests*", "notebooks*", "output*", "chromadb*", "versions*", "smallevals_results*"]
+
+[tool.setuptools.package-data]
+smallevals = ["logo/*.png"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

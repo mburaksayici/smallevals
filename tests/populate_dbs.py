@@ -65,7 +65,7 @@ def load_case_texts() -> List[str]:
         raise ValueError(f"Column 'case_text' not found in CSV. Available columns: {df.columns.tolist()}")
     
     # Get first 1000 case_text values, filter out any NaN values
-    case_texts = df['case_text'].head(1000).dropna().tolist()
+    case_texts = df['case_text'].head(300).dropna().tolist()
     
     # Filter out empty strings
     case_texts = [text.strip() for text in case_texts if text and text.strip()]
@@ -254,157 +254,6 @@ def populate_chroma(
         traceback.print_exc()
 
 
-def populate_milvus(
-    paragraphs: List[str],
-    embeddings: np.ndarray,
-    embedding_model: SentenceTransformer
-):
-
-    
-    print("\n" + "="*60)
-    print("Populating Milvus...")
-    print("="*60)
-    
-    milvus_path = TEST_VDBS_DIR / "milvus"
-    
-    try:
-        # Initialize Milvus connection with local file-based storage
-        # Pass folder path as uri for local storage
-        milvus_conn = MilvusConnection(
-            uri=str(milvus_path),  # Pass folder path for local file-based storage
-            collection_name="paragraphs",
-            embedding_model=embedding_model,
-            dimension=embeddings.shape[1]
-        )
-        
-        # Prepare data for insertion
-        # Milvus schema: pk (auto_id), text, start_index, end_index, token_count, embedding
-        print(f"Adding {len(paragraphs)} chunks to Milvus...")
-        
-        # Add chunks in batches
-        batch_size = 1000
-        for i in tqdm(range(0, len(paragraphs), batch_size), desc="Adding chunks"):
-            batch_paragraphs = paragraphs[i:i+batch_size]
-            batch_embeddings = embeddings[i:i+batch_size]
-            
-            # Prepare data matching Milvus schema
-            texts = batch_paragraphs
-            embedding_list = batch_embeddings.tolist()
-            # For simplicity, set start_index=0, end_index=len(text), token_count=len(text.split())
-            start_indices = [0] * len(batch_paragraphs)
-            end_indices = [len(text) for text in batch_paragraphs]
-            token_counts = [len(text.split()) for text in batch_paragraphs]
-            
-            # Use collection.insert directly
-            data = [
-                {
-                    "text": text,
-                    "start_index": start_idx,
-                    "end_index": end_idx,
-                    "token_count": token_count,
-                    "embedding": emb
-                }
-                for text, start_idx, end_idx, token_count, emb in zip(
-                    texts, start_indices, end_indices, token_counts, embedding_list
-                )
-            ]
-            milvus_conn.collection.insert(data)
-        
-        # Flush to ensure data is written
-        milvus_conn.collection.flush()
-        print(f"✅ Milvus populated: {milvus_path}")
-    except Exception as e:
-        print(f"❌ Failed to populate Milvus: {e}")
-        print("Note: Milvus requires a running Milvus server. Skipping...")
-        import traceback
-        traceback.print_exc()
-
-
-def populate_qdrant(
-    paragraphs: List[str],
-    embeddings: np.ndarray,
-    embedding_model: SentenceTransformer
-):
-
-    
-    print("\n" + "="*60)
-    print("Populating Qdrant...")
-    print("="*60)
-    
-    qdrant_path = TEST_VDBS_DIR / "qdrant"
-    
-    try:
-        # Initialize Qdrant connection (local)
-        qdrant_conn = QdrantConnection(
-            path=str(qdrant_path),
-            collection_name="paragraphs",
-            embedding_model=embedding_model
-        )
-        
-        # Prepare data for insertion
-        print(f"Adding {len(paragraphs)} chunks to Qdrant...")
-        
-        # Import Qdrant PointStruct
-        from qdrant_client.http.models import PointStruct
-        
-        # Add chunks in batches
-        batch_size = 1000
-        for i in tqdm(range(0, len(paragraphs), batch_size), desc="Adding chunks"):
-            batch_paragraphs = paragraphs[i:i+batch_size]
-            batch_embeddings = embeddings[i:i+batch_size]
-            
-            # Create points for Qdrant
-            points = [
-                PointStruct(
-                    id=i + j,
-                    vector=emb.tolist(),
-                    payload={"text": text, "chunk_id": f"chunk_{i+j}"}
-                )
-                for j, (text, emb) in enumerate(zip(batch_paragraphs, batch_embeddings))
-            ]
-            
-            # Upsert points
-            qdrant_conn.client.upsert(
-                collection_name=qdrant_conn.collection_name,
-                points=points
-            )
-        
-        print(f"✅ Qdrant populated: {qdrant_path}")
-    except Exception as e:
-        print(f"❌ Failed to populate Qdrant: {e}")
-        print("Note: Qdrant may require additional setup. Skipping...")
-        import traceback
-        traceback.print_exc()
-
-
-def populate_weaviate(
-    paragraphs: List[str],
-    embeddings: np.ndarray,
-    embedding_model: SentenceTransformer
-):
-
-    
-    print("\n" + "="*60)
-    print("Populating Weaviate...")
-    print("="*60)
-    
-    try:
-        # Initialize Weaviate connection (local)
-        weaviate_conn = WeaviateConnection(
-            url="http://localhost:8080",  # Local Weaviate
-            collection_name="paragraphs",
-            embedding_model=embedding_model
-        )
-        
-        # Prepare data for insertion
-        print(f"Adding {len(paragraphs)} chunks to Weaviate...")
-        # Weaviate uses a different API, need to check the implementation
-        # For now, skip if not available
-        print(f"⚠️  Weaviate population not yet implemented (requires running Weaviate server)")
-    except Exception as e:
-        print(f"❌ Failed to populate Weaviate: {e}")
-        import traceback
-        traceback.print_exc()
 
 
 def main():
@@ -415,15 +264,15 @@ def main():
     
     # Step 1: Load case texts from CSV
     paragraphs = load_case_texts()
-    
+    print(len(paragraphs))
     # Step 2: Create embeddings
     embeddings = create_embeddings(paragraphs)
     
     # Step 3: Generate Q/A pairs
-    qa_pairs = generate_qa_pairs(paragraphs)
-    
+    # qa_pairs = generate_qa_pairs(paragraphs)
+    qa_pairs = [None] * len(embeddings)
     # Step 4: Create DataFrame
-    df = create_dataframe(paragraphs, embeddings, qa_pairs)
+    df = create_dataframe(paragraphs, embeddings, qa_pairs=qa_pairs)
     
     # Step 5: Save parquet file
     save_parquet(df)
@@ -439,9 +288,6 @@ def main():
     
     # Step 9: Populate vector databases
     populate_chroma(paragraphs, embeddings, embedding_model)
-    populate_milvus(paragraphs, embeddings, embedding_model)
-    populate_qdrant(paragraphs, embeddings, embedding_model)
-    populate_weaviate(paragraphs, embeddings, embedding_model)
     
     print("\n" + "="*60)
     print("✅ Database population complete!")
