@@ -894,10 +894,12 @@ def render_metrics_tab(filtered_df, metadata, top_k, selected_version):
     # Calculate simple counts from dataframe (these are not metrics, just statistics)
     num_queries = len(filtered_df)
     num_found = 0
+    num_found_top1 = 0
     num_not_found = 0
     if 'chunk_position' in filtered_df.columns:
         found_in_topk = filtered_df[filtered_df['chunk_position'].notna() & (filtered_df['chunk_position'] <= top_k)]
         num_found = len(found_in_topk)
+        num_found_top1 = len(filtered_df[filtered_df['chunk_position'] == 1])
         num_not_found = num_queries - len(filtered_df[filtered_df['chunk_position'].notna()])
     
     # Add counts to metrics dict for display
@@ -945,10 +947,22 @@ def render_metrics_tab(filtered_df, metadata, top_k, selected_version):
         dbc.Col(create_metric_card(f"Recall@{top_k}", f"{metrics_with_counts.get(recall_key, 0):.3f}", "Recall at K"), width=3),
     ], className="mb-4")
     
+    top1_metrics = dbc.Row([
+        dbc.Col(create_metric_card("Hit Rate@1", f"{metrics_with_counts.get('hit_rate@1', 0):.3f}", 
+                                   "Fraction of queries where relevant chunk was found at rank 1"), width=4),
+        dbc.Col(create_metric_card("nDCG@1", f"{metrics_with_counts.get('ndcg@1', 0):.3f}", 
+                                   "Normalized Discounted Cumulative Gain at rank 1"), width=4),
+        dbc.Col(create_metric_card("Recall@1", f"{metrics_with_counts.get('recall@1', 0):.3f}", "Recall at rank 1"), width=4),
+    ], className="mb-4")
+    
     stats_metrics = dbc.Row([
         dbc.Col(create_metric_card("Total Queries", str(metrics_with_counts.get('num_queries', 0))), width=3),
+        dbc.Col(create_metric_card("Found in Top-1", str(num_found_top1)), width=3),
         dbc.Col(create_metric_card("Found in Top-K", str(metrics_with_counts.get('num_found', 0))), width=3),
         dbc.Col(create_metric_card("Not Found", str(metrics_with_counts.get('num_not_found', 0))), width=3),
+    ], className="mb-4")
+    
+    additional_stats2 = dbc.Row([
         dbc.Col(create_metric_card("Word/Char Ratio", f"{word_char_ratio:.3f}", "Average word to character ratio"), width=3),
     ], className="mb-4")
     
@@ -959,8 +973,11 @@ def render_metrics_tab(filtered_df, metadata, top_k, selected_version):
     return html.Div([
         html.H3("Summary Metrics", className="mb-4"),
         main_metrics,
+        html.H4("Top-1 Metrics", className="mb-3"),
+        top1_metrics,
         html.H4("Statistics", className="mb-3"),
         stats_metrics,
+        additional_stats2,
         additional_stats,
         html.Hr(),
         html.H4("Report Generation", className="mb-3"),

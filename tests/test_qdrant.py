@@ -9,7 +9,7 @@ from qdrant_client.models import Distance, VectorParams, PointStruct
 
 from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
 from sentence_transformers import SentenceTransformer
-
+N_CHUNKS = 2
 
 @pytest.fixture(scope="module")
 def qdrant_container():
@@ -141,7 +141,7 @@ def test_qdrant_query_via_wrapper(qdrant_db, embedding_model):
     
     # Test query
     test_question = "What is the legal framework?"
-    results = smallevals_vdb.query(test_question, top_k=5)
+    results = smallevals_vdb.search(test_question, top_k=5)
     
     assert isinstance(results, list)
     assert len(results) > 0
@@ -165,7 +165,7 @@ def test_evaluate_retrievals_basic(qdrant_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=10,
-        n_chunks=20,  # Small number for faster tests
+        n_chunks=N_CHUNKS,  # Small number for faster tests
         device=None,
         results_folder=None
     )
@@ -197,7 +197,7 @@ def test_evaluate_retrievals_with_custom_params(qdrant_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=5,
-        n_chunks=10,
+        n_chunks=N_CHUNKS,
         device=None,
         results_folder=None
     )

@@ -126,23 +126,10 @@ class ChromaConnection(BaseVDBConnection):
         if self.embedding_function is not None:
             collection_kwargs["embedding_function"] = self.embedding_function  # type: ignore[arg-type]
         
-        if collection_name != "random":
-            self.collection_name = collection_name
-            self.collection = self.client.get_or_create_collection(
-                self.collection_name, **collection_kwargs
-            )  # type: ignore[arg-type]
-        else:
-            # Keep generating random collection names until we find one that doesn't exist
-            while True:
-                self.collection_name = generate_random_collection_name()
-                try:
-                    self.collection = self.client.create_collection(
-                        self.collection_name, **collection_kwargs
-                    )  # type: ignore[arg-type]
-                    break
-                except Exception:
-                    pass
-            logger.info(f"Chonkie created a new collection in ChromaDB: {self.collection_name}")
+        self.collection_name = collection_name
+        self.collection = self.client.get_or_create_collection(
+            self.collection_name, **collection_kwargs
+        )  # type: ignore[arg-type]
 
         # Now that we have a collection, we can write the Chunks to it!
 
@@ -169,7 +156,7 @@ class ChromaConnection(BaseVDBConnection):
         self,
         query: Optional[str] = None,
         embedding: Optional[List[float]] = None,
-        limit: int = 5,
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Search the Chroma collection for similar chunks.
 
@@ -182,7 +169,7 @@ class ChromaConnection(BaseVDBConnection):
             List[Dict[str, Any]]: A list of dictionaries containing the matching chunks and their metadata.
 
         """
-        logger.debug(f"Searching Chroma collection: {self.collection_name} with limit={limit}")
+        logger.debug(f"Searching Chroma collection: {self.collection_name} with limit={top_k}")
         
         # Determine the query embeddings
         if embedding is not None:
@@ -198,7 +185,7 @@ class ChromaConnection(BaseVDBConnection):
         # Perform the query
         results = self.collection.query(
             query_embeddings=query_embeddings,
-            n_results=limit,
+            n_results=top_k,
             include=["metadatas", "documents", "distances"],
         )
 

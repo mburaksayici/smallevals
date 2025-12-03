@@ -187,8 +187,8 @@ class PgvectorConnection(BaseVDBConnection):
     def search(
         self, 
         query: Optional[str] = None,
-        query_embedding: Optional[List[float]] = None,
-        limit: int = 5, 
+        embedding: Optional[List[float]] = None,
+        top_k: int = 5, 
         filters: Optional[Dict[str, Any]] = None,
         include_metadata: bool = True,
         include_value: bool = True
@@ -197,7 +197,7 @@ class PgvectorConnection(BaseVDBConnection):
         
         Args:
             query: The query text to search for.
-            query_embedding: Pre-computed query embedding vector.
+            embedding: Pre-computed query embedding vector.
             limit: Maximum number of results to return.
             filters: Optional metadata filters (not fully implemented yet).
             include_metadata: Whether to include metadata in results.
@@ -207,18 +207,18 @@ class PgvectorConnection(BaseVDBConnection):
             List[Dict[str, Any]]: List of similar vectors with metadata and scores.
 
         """
-        logger.debug(f"Searching PostgreSQL table: {self.collection_name} with limit={limit}")
+        logger.debug(f"Searching PostgreSQL table: {self.collection_name} with limit={top_k}")
         
         # Determine the query embedding
-        if query_embedding is None:
+        if embedding is None:
             if query is None:
-                raise ValueError("Either query or query_embedding must be provided")
+                raise ValueError("Either query or embedding must be provided")
             if self.embedding_model is None:
                 raise ValueError("embedding_model must be provided to encode query strings")
-            query_embedding = self.embedding_model.encode(query).tolist()
+            embedding = self.embedding_model.encode(query).tolist()
         
         # Convert embedding to PostgreSQL vector format
-        embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+        embedding_str = "[" + ",".join(map(str, embedding)) + "]"
         
         # Build SQL query
         distance_op = self._get_distance_operator()
@@ -252,7 +252,7 @@ class PgvectorConnection(BaseVDBConnection):
 
                 params = {
                     "embedding": embedding_str,   # MUST be '[0.1, 0.2, ...]' format string
-                    "limit": limit,
+                    "limit": top_k,
                 }
 
                 if self.sqlalchemy_type == "engine":
@@ -276,7 +276,7 @@ class PgvectorConnection(BaseVDBConnection):
         else:  # psycopg2
             cursor = self.client.cursor()
             try:
-                cursor.execute(sql, {"embedding": embedding_str, "limit": limit})
+                cursor.execute(sql, {"embedding": embedding_str, "limit": top_k})
                 rows = cursor.fetchall()
                 cursor.close()
             except Exception as e:
@@ -379,3 +379,60 @@ class PgvectorConnection(BaseVDBConnection):
     def __repr__(self) -> str:
         """Return the string representation of the PgvectorConnection."""
         return f"PgvectorConnection(collection_name={self.collection_name}, vector_dimensions={self.vector_dimensions}, type={self.connection_type})"
+
+
+    def sample_chunks(self, num_chunks: int = 20) -> List[Dict[str, Any]]:
+        """
+        Randomly sample chunks from PostgreSQL using ORDER BY RANDOM().
+
+        Returns:
+            List of dicts with chunk info.
+        """
+
+        sql = f"""
+        SELECT id, text, start_index, end_index, token_count
+        FROM {self.collection_name}
+        ORDER BY RANDOM()
+        LIMIT %(limit)s;
+        """
+
+        # --- Execute SQL ---
+        if self.connection_type == "sqlalchemy":
+            from sqlalchemy import text
+
+            sql_text = text(sql.replace("%(limit)s", ":limit"))
+
+            params = {"limit": num_chunks}
+
+            if self.sqlalchemy_type == "engine":
+                with self.client.connect() as conn:
+                    rows = conn.execute(sql_text, params).fetchall()
+
+            elif self.sqlalchemy_type == "connection":
+                rows = self.client.execute(sql_text, params).fetchall()
+
+            else:  # session
+                rows = self.client.execute(sql_text, params).fetchall()
+
+        else:  # psycopg2
+            cursor = self.client.cursor()
+            try:
+                cursor.execute(sql, {"limit": num_chunks})
+                rows = cursor.fetchall()
+                cursor.close()
+            except Exception as e:
+                cursor.close()
+                raise e
+
+        # --- Normalize output ---
+        chunks = []
+        for row in rows:
+            chunks.append({
+                "id": row[0],
+                "text": row[1],
+                "start_index": row[2],
+                "end_index": row[3],
+                "token_count": row[4],
+            })
+
+        return chunks

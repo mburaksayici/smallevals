@@ -16,7 +16,7 @@ PG_DB = "testdb"
 PG_HOST = "localhost"
 PG_PORT = 5432
 
-
+N_CHUNKS = 2
 @pytest.fixture(scope="module")
 def pgvector_container():
     """
@@ -282,7 +282,7 @@ def test_pgvector_query_via_wrapper(pgvector_db, embedding_model):
     
     # Test query
     test_question = "What is the legal framework?"
-    results = smallevals_vdb.query(test_question, top_k=5)
+    results = smallevals_vdb.search(test_question, top_k=5)
     
     assert isinstance(results, list)
     assert len(results) > 0
@@ -309,7 +309,7 @@ def test_evaluate_retrievals_basic(pgvector_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=10,
-        n_chunks=20,  # Small number for faster tests
+        n_chunks=N_CHUNKS,  # Small number for faster tests
         device=None,
         results_folder=None
     )
@@ -344,7 +344,7 @@ def test_evaluate_retrievals_with_custom_params(pgvector_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=5,
-        n_chunks=10,
+        n_chunks=N_CHUNKS,
         device=None,
         results_folder=None
     )
@@ -373,7 +373,7 @@ def test_pgvector_direct_search(pgvector_db, embedding_model):
     )
     
     # Test search with query string
-    results = pgvector_conn.search(query="legal framework", limit=3)
+    results = pgvector_conn.search(query="legal framework", top_k=3)
     
     assert isinstance(results, list)
     assert len(results) > 0

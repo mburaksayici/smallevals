@@ -36,6 +36,8 @@ class SmallEvalsVDBConnection:
         connection: Any,
         collection: str,
         embedding: Union[Any, str],
+        *args,
+        **kwargs
     ):
         """Initialize SmallEvalsVDBConnection with auto-detection."""
 
@@ -62,34 +64,34 @@ class SmallEvalsVDBConnection:
         logger.info(f"Detected VDB type: {self.vdb_type}")
         
         # Auto-detect and create appropriate connection
-        self.connection = self._auto_detect_and_create(connection, collection)
+        self.connection = self._auto_detect_and_create(connection, collection, *args, **kwargs)
     
     def _auto_detect_and_create(
-        self, connection: Any, collection: str
+        self, connection: Any, collection: str, *args, **kwargs
     ) -> BaseVDBConnection:
         """Auto-detect vector database type and create appropriate connection."""
         connection_type = self.vdb_type
         
         if connection_type == "chromadb":
-            return self._create_chroma_connection(connection, collection)
+            return self._create_chroma_connection(connection, collection, *args, **kwargs)
         elif connection_type == "pinecone":
-            return self._create_pinecone_connection(connection, collection)
+            return self._create_pinecone_connection(connection, collection, *args, **kwargs)
         elif connection_type == "milvus":
-            return self._create_milvus_connection(connection, collection)
+            return self._create_milvus_connection(connection, collection, *args, **kwargs)
         elif connection_type == "qdrant":
-            return self._create_qdrant_connection(connection, collection)
+            return self._create_qdrant_connection(connection, collection, *args, **kwargs)
         elif connection_type == "weaviate":
-            return self._create_weaviate_connection(connection, collection)
+            return self._create_weaviate_connection(connection, collection, *args, **kwargs)
         elif connection_type == "elastic":
-            return self._create_elastic_connection(connection, collection)
+            return self._create_elastic_connection(connection, collection, *args, **kwargs)
         elif connection_type == "mongodb":
-            return self._create_mongodb_connection(connection, collection)
+            return self._create_mongodb_connection(connection, collection, *args, **kwargs)
         elif connection_type == "pgvector":
-            return self._create_pgvector_connection(connection, collection)
+            return self._create_pgvector_connection(connection, collection, *args, **kwargs)
         elif connection_type == "turbopuffer":
-            return self._create_turbopuffer_connection(connection, collection)
+            return self._create_turbopuffer_connection(connection, collection, *args, **kwargs)
         elif connection_type == "faiss":
-            return self._create_faiss_connection(connection, collection)
+            return self._create_faiss_connection(connection, collection, *args, **kwargs)
         else:
             raise ValueError(
                 f"Could not detect vector database type from connection object. "
@@ -176,25 +178,27 @@ class SmallEvalsVDBConnection:
         
         return "unknown"
     
-    def _create_chroma_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_chroma_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create ChromaDB connection."""
         from .chroma_con import ChromaConnection
         return ChromaConnection(
             client=connection,
             collection_name=collection,
-            embedding_model=self.embedding_model
+            embedding_model=self.embedding_model,
+            **kwargs
         )
     
-    def _create_pinecone_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_pinecone_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create Pinecone connection."""
         from .pinecone_con import PineconeConnection
         return PineconeConnection(
             client=connection,
             index_name=collection,
-            embedding_model=self.embedding_model
+            embedding_model=self.embedding_model,
+            **kwargs
         )
     
-    def _create_milvus_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_milvus_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create Milvus connection."""
         from .milvus_con import MilvusConnection
         
@@ -210,28 +214,30 @@ class SmallEvalsVDBConnection:
             client=connection,
             collection_name=collection,
             embedding_model=self.embedding_model,
-            dimension=dimension or 384  # Default dimension
+            **kwargs
         )
     
-    def _create_qdrant_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_qdrant_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create Qdrant connection."""
         from .qdrant_con import QdrantConnection
         return QdrantConnection(
             client=connection,
             collection_name=collection,
-            embedding_model=self.embedding_model
+            embedding_model=self.embedding_model,
+            **kwargs
         )
     
-    def _create_weaviate_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_weaviate_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create Weaviate connection."""
         from .weaviate_con import WeaviateConnection
         return WeaviateConnection(
             client=connection,
             collection_name=collection,
-            embedding_model=self.embedding_model
+            embedding_model=self.embedding_model,
+            **kwargs
         )
     
-    def _create_elastic_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_elastic_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create Elasticsearch connection."""
         from .elastic_con import ElasticConnection
         
@@ -243,23 +249,25 @@ class SmallEvalsVDBConnection:
             except Exception:
                 pass
         
+        
         return ElasticConnection(
             client=connection,
             index_name=collection,
             embedding_model=self.embedding_model,
-            dimension=dimension or 384  # Default dimension
+            **kwargs
         )
     
-    def _create_mongodb_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_mongodb_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create MongoDB connection."""
         from .mongodb_con import MongoDBConnection
         return MongoDBConnection(
             client=connection,
             collection_name=collection,
-            embedding_model=self.embedding_model
+            embedding_model=self.embedding_model,
+            **kwargs
         )
     
-    def _create_pgvector_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_pgvector_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create PgVector connection."""
         from .pgvector_con import PgvectorConnection
         
@@ -271,23 +279,27 @@ class SmallEvalsVDBConnection:
             except Exception:
                 pass
         
+        # Allow vector_dimensions override from kwargs
+        
         return PgvectorConnection(
             client=connection,
             collection_name=collection,
             embedding_model=self.embedding_model,
-            vector_dimensions=dimension
+            vector_dimensions=dimension,
+            **kwargs
         )
     
-    def _create_turbopuffer_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_turbopuffer_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create Turbopuffer connection."""
         from .turbopuffer_con import TurbopufferConnection
         return TurbopufferConnection(
             namespace=connection,  # Turbopuffer uses namespace directly
             namespace_name=collection,
-            embedding_model=self.embedding_model
+            embedding_model=self.embedding_model,
+            **kwargs
         )
     
-    def _create_faiss_connection(self, connection: Any, collection: str) -> BaseVDBConnection:
+    def _create_faiss_connection(self, connection: Any, collection: str, *args, **kwargs) -> BaseVDBConnection:
         """Create FAISS connection."""
         from .faiss_con import FaissConnection
         
@@ -303,13 +315,10 @@ class SmallEvalsVDBConnection:
         )
     
     # Delegate all BaseVDBConnection methods to the wrapped connection
-    def search(self, query: Optional[str] = None, embedding: Optional[list] = None, limit: int = 5):
+    def search(self, query: Optional[str] = None, embedding: Optional[list] = None, top_k: int = 5):
         """Search the vector database."""
-        return self.connection.search(query=query, embedding=embedding, limit=limit)
+        return self.connection.search(query=query, embedding=embedding, top_k=top_k)
     
-    def query(self, question: str, top_k: int = 5):
-        """Query the vector database."""
-        return self.connection.query(question=question, top_k=top_k)
     
     def sample_chunks(self, num_chunks: int):
         """Sample chunks from the vector database."""

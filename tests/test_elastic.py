@@ -13,6 +13,7 @@ from testcontainers.core.container import DockerContainer
 from smallevals import SmallEvalsVDBConnection, evaluate_retrievals 
 # Note: 'SentenceTransformer' is imported but not used directly in the provided code snippet
 
+N_CHUNKS = 2 
 # --- FIXTURES ---
 
 @pytest.fixture(scope="module")
@@ -190,13 +191,13 @@ def test_elastic_query_via_wrapper(elastic_db, embedding_model):
     
     # Test query
     test_question = "What is the legal framework?"
-    results = smallevals_vdb.query(test_question, top_k=5)
+    results = smallevals_vdb.search(test_question, top_k=5)
     
     assert isinstance(results, list)
     assert len(results) > 0
     # Check result structure
     assert all("text" in r for r in results)
-    # The ID returned by smallevals_vdb.query might be the internal Elastic ID or the one we set.
+    # The ID returned by smallevals_vdb.search might be the internal Elastic ID or the one we set.
     # Assuming the wrapper handles mapping the document ID.
     assert all("id" in r for r in results) 
 
@@ -216,7 +217,7 @@ def test_evaluate_retrievals_basic(elastic_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=10,
-        n_chunks=20,  # Small number for faster tests
+        n_chunks=N_CHUNKS,  # Small number for faster tests
         device=None,
         results_folder=None
     )
@@ -248,7 +249,7 @@ def test_evaluate_retrievals_with_custom_params(elastic_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=5,
-        n_chunks=10,
+        n_chunks=N_CHUNKS,
         device=None,
         results_folder=None
     )

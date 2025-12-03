@@ -160,7 +160,7 @@ class QdrantConnection(BaseVDBConnection):
         self,
         query: Optional[str] = None,
         embedding: Optional[List[float]] = None,
-        limit: int = 5,
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Retrieve the top_k most similar chunks to the query.
 
@@ -173,7 +173,7 @@ class QdrantConnection(BaseVDBConnection):
             List[Dict[str, Any]]: The list of most similar chunks with their metadata.
 
         """
-        logger.debug(f"Searching Qdrant collection: {self.collection_name} with limit={limit}")
+        logger.debug(f"Searching Qdrant collection: {self.collection_name} with limit={top_k}")
         if embedding is None and query is None:
             raise ValueError("Either query or embedding must be provided")
         if query is not None:
@@ -184,7 +184,7 @@ class QdrantConnection(BaseVDBConnection):
         results = self.client.query_points(
             collection_name=self.collection_name,
             query=embedding,
-            limit=limit,
+            limit=top_k,
             with_payload=True,
         )
         matches = [
@@ -193,3 +193,39 @@ class QdrantConnection(BaseVDBConnection):
         ]
         logger.info(f"Search complete: found {len(matches)} matching chunks")
         return matches
+
+    def sample_chunks(self, num_chunks: int = 20) -> List[Dict[str, Any]]:
+        """
+        Randomly sample num_chunks chunks from Qdrant.
+
+        Uses native Qdrant sampling if available (SampleQuery),
+        otherwise falls back to ID-based sampling.
+        """
+        import random
+        from qdrant_client import models
+
+        # --- TRY native Qdrant sampling ---
+        try:
+            result = self.client.query_points(
+                collection_name=self.collection_name,
+                query=models.SampleQuery(sample=models.Sample.RANDOM),
+                limit=num_chunks,
+                with_payload=True,
+                with_vectors=False,
+            )
+
+            points = result.dict()["points"]
+
+            if points:
+                return [
+                    {
+                        "id": str(p["id"]),
+                        "text": p.get("payload", {}).get("text", ""),
+                        "metadata": p.get("payload", {}),
+                    }
+                    for p in points
+                ]
+
+        except Exception as e:
+            logger.debug(f"Native Qdrant sampling unavailable, falling back: {e}")
+

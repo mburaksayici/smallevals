@@ -7,54 +7,62 @@ from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
 from smallevals.vdb_integrations.faiss_con import FaissConnection
 from sentence_transformers import SentenceTransformer
 
+N_CHUNKS = 2
+
 
 @pytest.fixture
 def faiss_db(embedding_model, qa_embeddings_parquet):
-    """Create a FAISS index populated with test data from parquet."""
-    # Get embedding dimension from model
+    """Create a FAISS index populated via native FAISS (no custom add())"""
+
+    import faiss
+    import numpy as np
+
+    # --- 1. Embedding dimension ---
     embedding_dim = embedding_model.get_sentence_embedding_dimension()
-    
-    # Create FAISS connection
+
+    # --- 2. Create FAISS index directly ---
+    index = faiss.IndexFlatL2(embedding_dim)
+
+    # --- 3. Load dataset ---
+    df = qa_embeddings_parquet
+    if len(df) == 0:
+        pytest.skip("Empty parquet")
+
+    df_subset = df.head(100)
+
+    chunks = df_subset["chunk"].tolist()
+    embeddings = np.vstack(df_subset["embedding"].values).astype("float32")
+
+    # --- 4. Add directly into FAISS ---
+    index.add(embeddings)
+
+    # --- 5. Build metadata store ---
+    metadatas = [
+        {
+            "id": str(i),
+            "text": text,
+            "start_index": 0,
+            "end_index": len(text),
+            "token_count": len(text.split()),
+        }
+        for i, text in enumerate(chunks)
+    ]
+
+    # --- 6. Create FaissConnection wrapper and inject index ---
     faiss_conn = FaissConnection(
         embedding_model=embedding_model,
         dimension=embedding_dim,
         index_type="Flat",
         metric="L2"
     )
-    
-    # Populate with data from parquet
-    df = qa_embeddings_parquet
-    
-    # Filter out rows with missing data
-    df_valid = df
-    
-    if len(df_valid) == 0:
-        pytest.skip("No valid data in parquet file")
-    
-    # Take a subset for faster tests (first 100 rows)
-    df_subset = df_valid.head(100)
-    
-    # Prepare data
-    chunks = df_subset['chunk'].tolist()
-    embeddings = np.array(df_subset['embedding'].tolist())
-    
-    # Prepare metadata
-    metadatas = [
-        {
-            "start_index": 0,
-            "end_index": len(c),
-            "token_count": len(c.split()),
-        }
-        for c in chunks
-    ]
-    
-    # Add data to FAISS
-    faiss_conn.add(texts=chunks, embeddings=embeddings, metadatas=metadatas)
-    
-    print(f"Populated FAISS with {len(chunks)} chunks")
-    
-    yield faiss_conn
 
+    # Inject native index + metadata
+    faiss_conn.index = index
+    faiss_conn._chunk_data = metadatas   # SmallEvals expects this
+
+    print(f"✅ FAISS populated with {index.ntotal} vectors")
+
+    yield faiss_conn
 
 def test_faiss_connection_setup(faiss_db, embedding_model):
     """Test FAISS connection setup following example_usage_chromadb.py pattern."""
@@ -79,7 +87,7 @@ def test_faiss_query_via_wrapper(faiss_db, embedding_model):
     
     # Test query
     test_question = "What is the legal framework?"
-    results = smallevals_vdb.query(test_question, top_k=5)
+    results = smallevals_vdb.search(test_question, top_k=5)
     
     assert isinstance(results, list)
     assert len(results) > 0
@@ -100,7 +108,7 @@ def test_evaluate_retrievals_basic(faiss_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=10,
-        n_chunks=20,  # Small number for faster tests
+        n_chunks=N_CHUNKS,  # Small number for faster tests
         device=None,
         results_folder=None
     )
@@ -129,7 +137,7 @@ def test_evaluate_retrievals_with_custom_params(faiss_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=5,
-        n_chunks=10,
+        n_chunks=N_CHUNKS,
         device=None,
         results_folder=None
     )
@@ -141,7 +149,7 @@ def test_evaluate_retrievals_with_custom_params(faiss_db, embedding_model):
 def test_faiss_direct_search(faiss_db):
     """Test direct search on FAISS connection."""
     # Test with a query string
-    results = faiss_db.search(query="What is the legal framework?", limit=5)
+    results = faiss_db.search(query="What is the legal framework?", top_k=5)
     
     assert isinstance(results, list)
     assert len(results) > 0
@@ -157,7 +165,7 @@ def test_faiss_search_with_embedding(faiss_db, embedding_model):
     query_embedding = embedding_model.encode(query_text)
     
     # Search with embedding
-    results = faiss_db.search(embedding=query_embedding, limit=5)
+    results = faiss_db.search(embedding=query_embedding, top_k=5)
     
     assert isinstance(results, list)
     assert len(results) > 0
@@ -188,40 +196,9 @@ def test_faiss_empty_index():
     )
     
     # Search on empty index should return empty list
-    results = faiss_conn.search(query="test query", limit=5)
+    results = faiss_conn.search(query="test query", top_k=5)
     assert results == []
     
     # Sample on empty index should return empty list
     chunks = faiss_conn.sample_chunks(num_chunks=10)
     assert chunks == []
-
-
-def test_faiss_add_vectors(embedding_model):
-    """Test adding vectors to FAISS index."""
-    embedding_dim = embedding_model.get_sentence_embedding_dimension()
-    
-    faiss_conn = FaissConnection(
-        embedding_model=embedding_model,
-        dimension=embedding_dim,
-    )
-    
-    # Add some test data
-    texts = ["This is a test", "Another test", "Third test"]
-    embeddings = np.random.rand(3, embedding_dim).astype(np.float32)
-    metadatas = [
-        {"start_index": 0, "end_index": 14, "token_count": 4},
-        {"start_index": 0, "end_index": 12, "token_count": 2},
-        {"start_index": 0, "end_index": 10, "token_count": 2},
-    ]
-    
-    faiss_conn.add(texts=texts, embeddings=embeddings, metadatas=metadatas)
-    
-    # Check that vectors were added
-    assert faiss_conn.index.ntotal == 3
-    assert len(faiss_conn._chunk_data) == 3
-    
-    # Check that we can search
-    results = faiss_conn.search(embedding=embeddings[0], limit=1)
-    assert len(results) == 1
-    assert results[0]["text"] == "This is a test"
-

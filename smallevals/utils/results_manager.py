@@ -198,6 +198,7 @@ def load_result(result_name: str) -> Dict[str, Any]:
     # Load QA pairs
     qa_path = result_path / "qa_pairs.jsonl"
     qa_pairs = []
+
     if qa_path.exists():
         with open(qa_path, "r", encoding="utf-8") as f:
             for line in f:

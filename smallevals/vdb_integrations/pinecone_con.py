@@ -146,7 +146,7 @@ class PineconeConnection(BaseVDBConnection):
         self,
         query: Optional[str] = None,
         embedding: Optional[List[float]] = None,
-        limit: int = 5,
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Search the Pinecone index for similar chunks.
 
@@ -159,10 +159,10 @@ class PineconeConnection(BaseVDBConnection):
             List[Dict[str, Any]]: A list of dictionaries containing the matching chunks and their metadata.
 
         """
-        logger.debug(f"Searching Pinecone index: {self.index_name} with limit={limit}")
+        logger.debug(f"Searching Pinecone index: {self.index_name} with limit={top_k}")
         if self.embed is not None:
             # Use Pinecone's integrated embedding model
-            results = self.index.query(query=query, top_k=limit, include_metadata=True)
+            results = self.index.query(query=query, top_k=top_k, include_metadata=True)
         elif query is None and embedding is None:
             raise ValueError(
                 "Query string or embedding must be provided when using a custom embedding model."
@@ -175,7 +175,7 @@ class PineconeConnection(BaseVDBConnection):
             if self.embedding_model is None:
                 raise ValueError("embedding_model must be provided to encode query strings")
             embedding = self.embedding_model.encode(query).tolist()  # type: ignore
-        results = self.index.query(vector=embedding, top_k=limit, include_metadata=True)
+        results = self.index.query(vector=embedding, top_k=top_k, include_metadata=True)
 
         matches = []
         for match in results.get("matches", []):

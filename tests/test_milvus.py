@@ -15,7 +15,7 @@ from pymilvus import (
 
 from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
 from sentence_transformers import SentenceTransformer
-
+N_CHUNKS = 2
 
 @pytest.fixture(scope="module")
 def milvus_container():
@@ -90,8 +90,6 @@ def milvus_db(milvus_container, embedding_model, qa_embeddings_parquet):
         "index_type": "HNSW",
         "params": {"M": 16, "efConstruction": 200},
     }
-    collection.create_index(field_name="embedding", index_params=index_params)
-    
     # Populate with data from parquet
     df = qa_embeddings_parquet
     
@@ -116,19 +114,28 @@ def milvus_db(milvus_container, embedding_model, qa_embeddings_parquet):
         [len(c.split()) for c in chunks],  # token_count
         embeddings.tolist(),  # embedding
     ]
-    
+        
     # Insert data
     collection.insert(entities)
     collection.flush()
-    
-    # Load collection for search
+
+    # Create index AFTER data is present
+    collection.create_index(
+        field_name="embedding",
+        index_params=index_params
+    )
+
+    # Ensure index is fully built
+    collection.flush()
+
+    # Load collection for search AFTER index exists
     collection.load()
-    
-    print(f"Populated Milvus with {len(chunks)} chunks")
-    
+
+    print(f"✅ Populated Milvus with {len(chunks)} chunks")
+
     # Return connection alias and collection name for SmallEvalsVDBConnection
     yield {"alias": alias, "collection_name": collection_name, "host": host, "port": port}
-    
+
     # Cleanup
     collection.release()
     connections.disconnect(alias=alias)
@@ -157,7 +164,7 @@ def test_milvus_query_via_wrapper(milvus_db, embedding_model):
     """Test querying Milvus through SmallEvalsVDBConnection wrapper."""
     collection_name = milvus_db["collection_name"]
     alias = milvus_db["alias"]
-    
+
     # Get the collection for passing to SmallEvalsVDBConnection
     collection = Collection(collection_name, using=alias)
     
@@ -169,7 +176,7 @@ def test_milvus_query_via_wrapper(milvus_db, embedding_model):
     
     # Test query
     test_question = "What is the legal framework?"
-    results = smallevals_vdb.query(test_question, top_k=5)
+    results = smallevals_vdb.search(test_question, top_k=5)
     
     assert isinstance(results, list)
     assert len(results) > 0
@@ -196,7 +203,7 @@ def test_evaluate_retrievals_basic(milvus_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=10,
-        n_chunks=20,  # Small number for faster tests
+        n_chunks=N_CHUNKS,  # Small number for faster tests
         device=None,
         results_folder=None
     )
@@ -231,7 +238,7 @@ def test_evaluate_retrievals_with_custom_params(milvus_db, embedding_model):
     result = evaluate_retrievals(
         connection=smallevals_vdb,
         top_k=5,
-        n_chunks=10,
+        n_chunks=N_CHUNKS,
         device=None,
         results_folder=None
     )

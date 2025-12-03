@@ -66,9 +66,9 @@ def generate_qa_from_vectordb(
     elif query_fn is not None:
         # Fallback: create wrapper for custom functions
         class CustomVDB(BaseVDBConnection):
-            def search(self, query=None, embedding=None, limit=5):
+            def search(self, query=None, embedding=None, top_k=5):
                 if query:
-                    results = query_fn(query, limit)
+                    results = query_fn(query, top_k)
                     # Normalize results
                     normalized = []
                     for result in results:
@@ -84,7 +84,7 @@ def generate_qa_from_vectordb(
                     return normalized
                 elif embedding:
                     # If only embedding provided, need to handle differently
-                    return query_fn(None, limit)  # This may need adjustment
+                    return query_fn(None, top_k)  # This may need adjustment
                 return []
             def sample_chunks(self, num_chunks):
                 if sample_fn:
@@ -103,12 +103,11 @@ def generate_qa_from_vectordb(
                     return normalized
                 return []
         vdb = CustomVDB()
-    elif hasattr(vectordb, "query") and hasattr(vectordb, "sample_chunks"):
+    elif hasattr(vectordb, "search") and hasattr(vectordb, "sample_chunks"):
         # Use object directly if it has the right methods
         vdb = vectordb
     else:
-        raise ValueError("vectordb must be a BaseVDBConnection instance or have query/sample_chunks methods")
-
+        raise ValueError("vectordb must be a BaseVDBConnection instance or have search/sample_chunks methods")
     # Sample chunks from vector DB
     logger.info(f"Sampling {num_chunks} chunks from vector database...")
     chunks = vdb.sample_chunks(num_chunks)
@@ -163,6 +162,7 @@ def create_results_dataframe(
     logger.info(f"Creating results DataFrame from {len(qa_pairs)} QA pairs...")
     
     rows = []
+
     for qa_pair, retrieved in zip(qa_pairs, retrieval_results):
         question = qa_pair.get("question", "")
         answer = qa_pair.get("answer", "")
@@ -253,7 +253,6 @@ def evaluate_retrievals(
     logger.info("=" * 60)
     logger.info("Starting Retrieval Evaluation")
     logger.info("=" * 60)
-    
     # Step 1: Generate QA pairs
     logger.info(f"Step 1: Generating QA pairs from {n_chunks} chunks...")
     qa_pairs = generate_qa_from_vectordb(
@@ -278,15 +277,25 @@ def evaluate_retrievals(
         if not question:
             retrieval_results.append([])
             continue
-        retrieved = connection.query(question, top_k=top_k)
+        retrieved = connection.search(question, top_k=top_k)
         retrieval_results.append(retrieved)
     
-    # Calculate metrics
+    # Calculate metrics for main top_k
     logger.info("Calculating metrics...")
     metrics_result = calculate_retrieval_metrics_full(
         qa_pairs, retrieval_results, top_k=top_k
     )
     aggregated = metrics_result["aggregated"]
+    
+    # Also calculate metrics for top_k=1
+    logger.info("Calculating Top-1 metrics...")
+    metrics_result_top1 = calculate_retrieval_metrics_full(
+        qa_pairs, retrieval_results, top_k=1
+    )
+    aggregated_top1 = metrics_result_top1["aggregated"]
+    
+    # Merge top-1 metrics into aggregated metrics
+    aggregated.update(aggregated_top1)
     
     # Step 3: Create results folder
     if results_folder is None:

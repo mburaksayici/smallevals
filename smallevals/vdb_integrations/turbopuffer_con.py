@@ -102,7 +102,7 @@ class TurbopufferConnection(BaseVDBConnection):
         self,
         query: Optional[str] = None,
         embedding: Optional[List[float]] = None,
-        limit: int = 5,
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Search the Turbopuffer namespace for similar chunks.
 
@@ -126,7 +126,7 @@ class TurbopufferConnection(BaseVDBConnection):
         # Use include_attributes to request extra fields
         results = self.namespace.query(
             rank_by=("vector", "ANN", embedding),
-            top_k=limit,
+            top_k=top_k,
             include_attributes=["text", "start_index", "end_index", "token_count"],
         )
         return [

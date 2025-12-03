@@ -25,10 +25,7 @@ if TYPE_CHECKING:
 
 
 class WeaviateConnection(BaseVDBConnection):
-    """Weaviate Connection to export Chonkie's Chunks into a Weaviate collection.
-
-    This handshake allows storing Chonkie chunks in Weaviate with vector embeddings.
-    It supports both API key and OAuth authentication methods.
+    """Weaviate Connection.
 
     Args:
         client: Optional[weaviate.Client]: An existing Weaviate client instance.
@@ -47,7 +44,7 @@ class WeaviateConnection(BaseVDBConnection):
     def __init__(
         self,
         client: Optional[Any] = None,  # weaviate.Client
-        collection_name: Union[str, Literal["random"]] = "random",
+        collection_name: Union[str, None] = None,
         embedding_model: Optional["SentenceTransformer"] = None,
         url: Optional[str] = None,
         api_key: Optional[str] = None,
@@ -83,6 +80,7 @@ class WeaviateConnection(BaseVDBConnection):
         super().__init__()
 
         self._import_dependencies()
+        self.collection_name = collection_name
 
         if client is None:
             if url is None:
@@ -132,18 +130,6 @@ class WeaviateConnection(BaseVDBConnection):
         self.batch_dynamic = batch_dynamic
         self.batch_timeout_retries = batch_timeout_retries
 
-        if collection_name == "random":
-            while True:
-                self.collection_name = generate_random_collection_name(sep="_")
-                if not self._collection_exists(self.collection_name):
-                    break
-            logger.info(f"Chonkie created a new collection in Weaviate: {self.collection_name}")
-        else:
-            self.collection_name = collection_name
-
-        if not self._collection_exists(self.collection_name):
-            self._create_collection()
-
     def _is_available(self) -> bool:
         """Check if the dependencies are available."""
         return importutil.find_spec("weaviate") is not None
@@ -177,46 +163,6 @@ class WeaviateConnection(BaseVDBConnection):
             logger.warning(f"Failed to check for collection '{collection_name}': {e}")
             return False
 
-    def _create_collection(self) -> None:
-        """Create a new collection in Weaviate."""
-        from weaviate.collections.classes.config import Configure, DataType, Property
-
-        try:
-            self.client.collections.create(
-                name=self.collection_name,
-                vector_index_config=Configure.VectorIndex.hnsw(),
-                properties=[
-                    Property(
-                        name="text",
-                        data_type=DataType.TEXT,
-                        description="The text content of the chunk",
-                    ),
-                    Property(
-                        name="start_index",
-                        data_type=DataType.INT,
-                        description="The start index of the chunk in the original text",
-                    ),
-                    Property(
-                        name="end_index",
-                        data_type=DataType.INT,
-                        description="The end index of the chunk in the original text",
-                    ),
-                    Property(
-                        name="token_count",
-                        data_type=DataType.INT,
-                        description="The number of tokens in the chunk",
-                    ),
-                    Property(
-                        name="chunk_type",
-                        data_type=DataType.TEXT,
-                        description="The type of the chunk",
-                    ),
-                ],
-            )
-
-            logger.info(f"Created Weaviate collection: {self.collection_name}")
-        except Exception:
-            raise
 
 
     def __repr__(self) -> str:
@@ -227,20 +173,20 @@ class WeaviateConnection(BaseVDBConnection):
         self,
         query: Optional[str] = None,
         embedding: Optional[List[float]] = None,
-        limit: int = 5,
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Retrieve the top_k most similar chunks to the query.
 
         Args:
             query: Optional[str]: The query string to search for.
             embedding: Optional[List[float]]: The embedding vector to search for. If provided, `query` is ignored.
-            limit: int: The number of top similar chunks to retrieve.
+            top_k: int: The number of top similar chunks to retrieve.
 
         Returns:
             List[Dict[str, Any]]: The list of most similar chunks with their metadata.
 
         """
-        logger.debug(f"Searching Weaviate collection: {self.collection_name} with limit={limit}")
+        logger.debug(f"Searching Weaviate collection: {self.collection_name} with limit={top_k}")
         if embedding is None and query is None:
             raise ValueError("Either query or embedding must be provided")
         if query is not None:
@@ -250,7 +196,7 @@ class WeaviateConnection(BaseVDBConnection):
         collection = self.client.collections.get(self.collection_name)
         results = collection.query.near_vector(
             near_vector=embedding, # type: ignore[arg-type] 
-            limit=limit,
+            limit=top_k,
             return_metadata=weaviate.classes.query.MetadataQuery(distance=True),
         )
         matches = []
@@ -269,3 +215,50 @@ class WeaviateConnection(BaseVDBConnection):
             matches.append(match)
         logger.info(f"Search complete: found {len(matches)} matching chunks")
         return matches
+
+    def sample_chunks(self, num_chunks: int = 20) -> List[Dict[str, Any]]:
+        """
+        Randomly sample chunks from Weaviate using structured query (no vector search).
+
+        Uses Weaviate's OFFSET-based random window sampling which is the safest
+        portable way to simulate RANDOM() in Weaviate today.
+        """
+
+        import random
+        collection = self.client.collections.get(self.collection_name)
+
+        # --- 1. Get total object count ---
+        try:
+            stats = collection.aggregate.over_all()
+            total = stats.total_count
+        except Exception:
+            logger.warning("Failed to get collection size")
+            return []
+
+        if total == 0:
+            return []
+
+        # --- 2. Pick random offset window ---
+        num_chunks = min(num_chunks, total)
+        max_offset = max(0, total - num_chunks)
+        offset = random.randint(0, max_offset)
+
+        # --- 3. Fetch random window ---
+        results = collection.query.fetch_objects(
+            offset=offset,
+            limit=num_chunks
+        )
+
+        # --- 4. Normalize output ---
+        chunks = []
+        for obj in results.objects:
+            chunks.append({
+                "id": obj.uuid,
+                "text": obj.properties.get("text"),
+                "start_index": obj.properties.get("start_index"),
+                "end_index": obj.properties.get("end_index"),
+                "token_count": obj.properties.get("token_count"),
+                "chunk_type": obj.properties.get("chunk_type"),
+            })
+
+        return chunks

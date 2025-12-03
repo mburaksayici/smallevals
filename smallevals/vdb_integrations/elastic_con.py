@@ -110,14 +110,14 @@ class ElasticConnection(BaseVDBConnection):
         self,
         query: Optional[str] = None,
         embedding: Optional[List[float]] = None,
-        limit: int = 5,
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Retrieve the top_k most similar chunks to the query using KNN search.
 
         Args:
             query: The query string to search for. If provided, `embedding` is ignored.
             embedding: The embedding vector to search for.
-            limit: The number of top similar chunks to retrieve.
+            top_k: The number of top similar chunks to retrieve.
 
         Returns:
             A list of dictionaries, each containing a similar chunk, its metadata, and similarity score.
@@ -133,11 +133,11 @@ class ElasticConnection(BaseVDBConnection):
         knn_query = {
             "field": "embedding",
             "query_vector": embedding,
-            "k": limit,
+            "k": top_k,
             "num_candidates": 100,  # A standard parameter for approximate nearest neighbor search
         }
 
-        results = self.client.search(index=self.index_name, knn=knn_query, size=limit)
+        results = self.client.search(index=self.index_name, knn=knn_query, size=top_k)
 
         # Format the results to match the unified output of other handshakes
         matches = []
@@ -152,3 +152,38 @@ class ElasticConnection(BaseVDBConnection):
                 "token_count": source.get("token_count"),
             })
         return matches
+
+
+    def sample_chunks(self, num_chunks: int = 20) -> List[Dict[str, Any]]:
+        """
+        Randomly sample chunks from Elasticsearch using native random_score.
+        """
+
+        # --- Native random sampling in Elasticsearch ---
+        query = {
+            "size": num_chunks,
+            "query": {
+                "function_score": {
+                    "query": {"match_all": {}},
+                    "random_score": {},  # True randomness from ES
+                }
+            }
+        }
+
+        results = self.client.search(index=self.index_name, body=query)
+
+        hits = results.get("hits", {}).get("hits", [])
+
+        chunks = []
+        for hit in hits:
+            source = hit["_source"]
+
+            chunks.append({
+                "id": hit["_id"],
+                "text": source.get("text", ""),
+                "start_index": source.get("start_index"),
+                "end_index": source.get("end_index"),
+                "token_count": source.get("token_count"),
+            })
+
+        return chunks

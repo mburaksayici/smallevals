@@ -266,6 +266,7 @@ def calculate_retrieval_metrics_full(
         Dictionary with aggregated and per-sample metrics
     """
     per_sample_metrics = []
+    
     for qa_pair, retrieved in zip(qa_dataset, retrieval_results):
         # Use VDB's ID from qa_pair
         relevant_chunk = {"id": qa_pair.get("id", "")}

@@ -1,67 +1,79 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "smallevals"
 version = "0.1.0"
 description = "Small Language Models Evaluation Suite for RAG Systems"
 readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Mehmet Burak Sayıcı", email = "mburaksayici@gmail.com"}
+]
+keywords = ["rag", "evaluation", "vector-database", "retrieval", "nlp", "llm", "small-language-models"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
-    "datasets==3.6",
-    "jupyter>=1.1.1",
-    "llama-cpp-python>=0.3.16",
-    "notebook>=7.5.0",
+    # Core dependencies
     "openai>=2.8.1",
-    "pip>=25.3",
     "python-dotenv>=1.2.1",
     "tqdm>=4.67.1",
     "transformers>=4.30.0",
     "torch>=2.0.0",
-    "llama-index-core>=0.10.0",
-    "chromadb>=1.3.5",
     "sentence-transformers>=5.1.2",
-    "peft>=0.18.0",
-    "streamlit>=1.28.0",
     "pandas>=2.0.0",
+    "llama-cpp-python>=0.3.16",
+    "peft>=0.18.0",
+    "hf-transfer>=0.1.9",
+    "langchain-community>=0.4.1",
+    "llama-index-core>=0.10.0",
+    # UI/Dashboard
     "plotly>=5.0.0",
     "dash>=2.14.0",
     "dash-bootstrap-components>=1.5.0",
-    "pymilvus>=2.6.3",
+    # All Vector Databases
+    "chromadb>=1.3.5",
     "weaviate-client>=4.18.1",
-    "pytest>=9.0.1",
-    "testcontainers[elasticsearch,weaviate]>=4.13.3",
-    "hf-transfer>=0.1.9",
-    "langchain-community>=0.4.1",
+    "faiss-cpu>=1.13.0",
+    "pinecone-client>=3.0.0",
+    "pymilvus>=2.6.3",
     "elasticsearch==8.11",
     "elastic-transport==8.11",
     "psycopg2>=2.9.11",
     "psycopg2-binary>=2.9.11",
     "sqlalchemy>=2.0.0",
-    "faiss-cpu>=1.13.0",
     "qdrant-client>=1.16.1",
+    "pymongo>=4.0.0",
+    "turbopuffer>=0.1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/mburaksayici/smallevals"
+Repository = "https://github.com/mburaksayici/smallevals"
+Issues = "https://github.com/mburaksayici/smallevals/issues"
+Documentation = "https://github.com/mburaksayici/smallevals#readme"
+
 [project.optional-dependencies]
-vectordb = [
-    "chromadb>=0.4.0",
-    "sentence-transformers>=2.2.0",
-    "faiss-cpu>=1.7.0",
-]
-all = [
-    "chromadb>=0.4.0",
-    "sentence-transformers>=2.2.0",
-    "faiss-cpu>=1.7.0",
-]
+# Testing only
 test = [
-    "pytest>=7.0.0",
+    "pytest>=9.0.1",
     "pytest-cov>=4.0.0",
-    "testcontainers[weaviate]>=4.0.0",
-    "pyarrow>=10.0.0",  # For parquet file reading
-]
-dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "testcontainers[weaviate]>=4.0.0",
+    "testcontainers[elasticsearch,weaviate]>=4.13.3",
     "pyarrow>=10.0.0",
 ]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

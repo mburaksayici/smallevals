@@ -57,6 +57,7 @@ def generate_html_report(
     # Create rank distribution and calculate statistics from DataFrame
     rank_dist = {}
     num_found_in_topk = 0
+    num_found_in_top1 = 0
     num_not_found = 0
     
     if 'chunk_position' in df.columns:
@@ -64,6 +65,9 @@ def generate_html_report(
             count = len(df[df['chunk_position'] == rank])
             rank_dist[rank] = count
             num_found_in_topk += count
+        
+        # Count found in top-1 (rank 1)
+        num_found_in_top1 = len(df[df['chunk_position'] == 1])
         
         # Count not found: NaN or position > top_k
         not_found_mask = df['chunk_position'].isna() | (df['chunk_position'] > top_k)
@@ -627,11 +631,31 @@ def generate_html_report(
             </div>
         </div>
         
+        <h2>Top-1 Metrics</h2>
+        <div class="metrics-grid">
+            <div class="metric-card hit-rate">
+                <h3>Hit Rate@1</h3>
+                <div class="value">{metrics.get('hit_rate@1', 0):.4f}</div>
+            </div>
+            <div class="metric-card precision">
+                <h3>nDCG@1</h3>
+                <div class="value">{metrics.get('ndcg@1', 0):.4f}</div>
+            </div>
+            <div class="metric-card recall">
+                <h3>Recall@1</h3>
+                <div class="value">{metrics.get('recall@1', 0):.4f}</div>
+            </div>
+        </div>
+        
         <h2>Statistics</h2>
         <div class="statistics">
             <div class="stat-item">
                 <div class="label">Total Queries</div>
                 <div class="value">{total_queries}</div>
+            </div>
+            <div class="stat-item">
+                <div class="label">Found in Top-1</div>
+                <div class="value">{num_found_in_top1}</div>
             </div>
             <div class="stat-item">
                 <div class="label">Found in Top-{top_k}</div>

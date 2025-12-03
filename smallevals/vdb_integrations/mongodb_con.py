@@ -135,20 +135,20 @@ class MongoDBConnection(BaseVDBConnection):
         self,
         query: Optional[str] = None,
         embedding: Optional[List[float]] = None,
-        limit: int = 5,
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Search for similar chunks in the MongoDB collection.
 
         Args:
             query: The query string to search for.
             embedding: The embedding vector to search for.
-            limit: The number of top similar chunks to return.
+            top_k: The number of top similar chunks to return.
 
         Returns:
             A list of dictionaries containing the similar chunks and their metadata.
 
         """
-        logger.debug(f"Searching MongoDB collection: {self.collection_name} with limit={limit}")
+        logger.debug(f"Searching MongoDB collection: {self.collection_name} with limit={top_k}")
         if query is not None:
             if self.embedding_model is None:
                 raise ValueError("embedding_model must be provided to encode query strings")
@@ -198,6 +198,6 @@ class MongoDBConnection(BaseVDBConnection):
                 results.append(result)
         # Sort by score descending and return limit
         results.sort(key=lambda x: x["score"], reverse=True)
-        matches = results[:limit]
+        matches = results[:top_k]
         logger.info(f"Search complete: found {len(matches)} matching chunks")
         return matches

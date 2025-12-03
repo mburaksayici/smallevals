@@ -76,6 +76,8 @@ class MilvusConnection(BaseVDBConnection):
         self.embedding_model = embedding_model
         self.dimension = dimension
 
+
+
         # --- Special case: user passed an existing Collection directly ---
         from pymilvus import Collection as _Collection  # type: ignore
         from pymilvus import MilvusClient as _MilvusClient  # type: ignore
@@ -89,6 +91,12 @@ class MilvusConnection(BaseVDBConnection):
             # Ensure it's loaded for search
             try:
                 self.collection.load()
+                self.anns_field = next(
+            f.name for f in self.collection.schema.fields 
+            if f.dtype.name == "FLOAT_VECTOR"
+        )
+
+
             except Exception as e:  # pragma: no cover
                 logger.warning(f"Failed to load collection {self.collection_name}: {e}")
             return
@@ -120,6 +128,10 @@ class MilvusConnection(BaseVDBConnection):
         if isinstance(client, _MilvusClient):
             # User provided a MilvusClient directly
             self.client = client
+            self.anns_field = next(
+                f.name for f in self.collection.schema.fields 
+                if f.dtype.name == "FLOAT_VECTOR"
+            )
         elif use_local_storage and local_db_path:
             # Milvus Lite - file-based
             from pymilvus import MilvusClient, connections  # type: ignore
@@ -127,6 +139,10 @@ class MilvusConnection(BaseVDBConnection):
             self.client = MilvusClient(uri=f"file://{local_db_path}", **kwargs)
             try:
                 connections.connect(uri=f"file://{local_db_path}", alias=alias, **kwargs)
+                self.anns_field = next(
+                    f.name for f in self.collection.schema.fields 
+                    if f.dtype.name == "FLOAT_VECTOR"
+                )
             except Exception as e:  # pragma: no cover
                 logger.warning(f"Could not connect ORM (Lite) with alias={alias}: {e}")
         else:
@@ -144,6 +160,7 @@ class MilvusConnection(BaseVDBConnection):
                 **kwargs,
             )
             try:
+
                 connections.connect(
                     alias=alias,
                     uri=final_uri,
@@ -151,32 +168,13 @@ class MilvusConnection(BaseVDBConnection):
                     password=api_key,
                     **kwargs,
                 )
+                self.anns_field = next(
+                    f.name for f in self.collection.schema.fields 
+                    if f.dtype.name == "FLOAT_VECTOR"
+                )
             except Exception as e:  # pragma: no cover
                 logger.warning(f"Could not connect ORM with alias={alias}: {e}")
 
-        # --- Handle collection name & creation ---
-        from pymilvus import Collection, utility  # type: ignore
-
-        if collection_name == "random":
-            while True:
-                candidate = generate_random_collection_name(sep="_")
-                if self._has_collection(candidate):
-                    continue
-                self.collection_name = candidate
-                break
-        else:
-            self.collection_name = collection_name
-
-        # Create collection if it doesn't exist
-        if not self._has_collection(self.collection_name):
-            self._create_collection_with_schema()
-
-        # Bind ORM Collection to this alias
-        self.collection = Collection(self.collection_name, using=self.alias)
-        try:
-            self.collection.load()
-        except Exception as e:  # pragma: no cover
-            logger.warning(f"Failed to load collection {self.collection_name}: {e}")
 
     # ------------------------------------------------------------------ #
     # Internal helpers
@@ -230,7 +228,7 @@ class MilvusConnection(BaseVDBConnection):
         self,
         query: Optional[str] = None,
         embedding: Optional[Union[List[float], "np.ndarray"]] = None,
-        limit: int = 5,
+        top_k: int = 5,
     ) -> List[Dict[str, Any]]:
         """Retrieve the top-k most similar chunks to the query."""
         if embedding is None and query is None:
@@ -256,9 +254,9 @@ class MilvusConnection(BaseVDBConnection):
 
         results = self.collection.search(
             data=query_vectors,
-            anns_field="embedding",
+            anns_field=self.anns_field,
             param=search_params,
-            limit=limit,
+            limit=top_k,
             output_fields=output_fields,
         )
 
@@ -267,10 +265,63 @@ class MilvusConnection(BaseVDBConnection):
             # hit.entity is a dict-like object with fields
             entity_data = dict(hit.entity)
             match_data = {
-                "id": hit.id,
+                "id": str(hit.id),
                 "score": hit.distance,  # distance as score
                 **entity_data,
             }
             matches.append(match_data)
 
         return matches
+
+    def sample_chunks(self, num_chunks: int = 20) -> List[Dict[str, Any]]:
+        """
+        Randomly sample k chunks from Milvus using ID-first strategy (fast & safe).
+
+        Returns:
+            List of dicts with chunk info.
+        """
+        import random
+        # --- 1. Fetch all primary keys only ---
+        ids = self.collection.query(
+            expr="",
+            output_fields=["pk"],
+            limit=num_chunks*2,
+            filter="RANDOM_SAMPLE(0.99)",
+        )
+        ids =  [i["pk"] for i in ids]
+
+
+        if not ids:
+            return []
+
+        # --- 2. Sample IDs in Python ---
+        sampled_ids = random.sample(ids, num_chunks)
+
+        # --- 3. Fetch full rows only for sampled IDs ---
+        # Build Milvus IN expression
+        id_expr = f"pk in {sampled_ids}"
+
+        results = self.collection.query(
+            expr=id_expr,
+            output_fields=[
+                "pk",
+                "text",
+                "start_index",
+                "end_index",
+                "token_count"
+            ]
+        )
+
+        # --- 4. Normalize output format ---
+        chunks = []
+        for row in results:
+            chunks.append({
+                "id": str(row.get("pk")),
+                "text": row.get("text", ""),
+                "start_index": row.get("start_index"),
+                "end_index": row.get("end_index"),
+                "token_count": row.get("token_count"),
+            })
+
+        return chunks
+
