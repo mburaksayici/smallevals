@@ -205,3 +205,5 @@ def test_evaluate_retrievals_with_custom_params(qdrant_db, embedding_model):
     assert result is not None
     assert "results_path" in result
 
+
+

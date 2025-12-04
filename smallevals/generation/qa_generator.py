@@ -6,8 +6,11 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Union
 from tqdm import tqdm
 import pandas as pd
+import os
 
-from llama_index.core import SimpleDirectoryReader
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentConverter, PdfFormatOption
 
 from smallevals.models import GoldenGenerator
 from smallevals.utils.json_parser import parse_json_response
@@ -225,35 +228,21 @@ def generate_questions_from_docs(
             raise FileNotFoundError(f"Path not found: {docs_path}")
         
         if path_obj.is_dir():
-            # Load documents from directory using LlamaIndex SimpleDirectoryReader
-            loader = SimpleDirectoryReader(input_dir=str(path_obj), recursive=True)
-            documents = loader.load_data()
+            # Load documents from directory using docling
+            # Recursively find all files in the directory
+            text_files = []
+            for root, dirs, files in os.walk(path_obj):
+                for filename in files:
+                    file_path = Path(root) / filename
+                    # Try to verify it's a readable document by checking extension
+                    if file_path.suffix.lower() in ['.pdf', '.docx', '.txt', '.md', '.doc', '.pptx', '.html']:
+                        text_files.append(file_path)
             
-            if not documents:
+            if not text_files:
                 raise ValidationError(f"No documents found in {docs_path}")
-            
-            # Get unique file sources
-            file_sources = {}
-            for doc in documents:
-                source = doc.metadata.get('file_path', '') or doc.metadata.get('source', '')
-                if source:
-                    file_path = Path(source)
-                    if file_path.is_file():
-                        file_sources[str(file_path)] = file_path
-            
-            if not file_sources:
-                raise ValidationError(f"No valid files found in {docs_path}")
-            
-            text_files = list(file_sources.values())
         elif path_obj.is_file():
-            # Single file - use SimpleDirectoryReader with file path
-            loader = SimpleDirectoryReader(input_files=[str(path_obj)])
-            documents = loader.load_data()
-            
-            if documents:
-                text_files = [path_obj]
-            else:
-                raise ValidationError(f"Could not load file: {docs_path}")
+            # Single file - validate it exists
+            text_files = [path_obj]
         else:
             raise ValidationError(f"Path is neither a directory nor a file: {docs_path}")
     
@@ -311,25 +300,32 @@ def generate_questions_from_docs(
     # Initialize QA generator
     logger.info("Initializing QA generator...")
     qa_generator = QAGenerator(device=device, batch_size=batch_size)
-    
+
+    # Initialize Docling converter with OCR explicitly disabled for PDFs
+    pdf_options = PdfPipelineOptions()
+    pdf_options.do_ocr = False
+
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_options)
+        }
+    )
+
     # Collect chunks to process
     chunks_to_process = []
     for file_path_str, num_q in file_question_map.items():
         file_path = Path(file_path_str)
-        
+
         try:
-            # Load file content using LlamaIndex SimpleDirectoryReader
-            loader = SimpleDirectoryReader(input_files=[str(file_path)])
-            file_docs = loader.load_data()
-            
-            if not file_docs:
+            # Load file content using Docling converter for all supported formats
+            result = converter.convert(str(file_path))
+
+            # Extract plain text content
+            content = result.document.export_to_text().strip()
+
+            if not content:
                 logger.warning(f"No content loaded from {file_path.name}")
                 continue
-            
-            # Combine all document pages into single content
-            # LlamaIndex documents use .text instead of .page_content
-            content = "\n".join([doc.text for doc in file_docs])
-            content = content.strip()
         except Exception as e:
             logger.warning(f"Error loading {file_path.name}: {e}")
             continue
@@ -396,8 +392,10 @@ def generate_questions_from_docs(
     for i, (chunk_info, qa_pair) in enumerate(zip(chunks_to_process, qa_pairs)):
         if qa_pair and "question" in qa_pair:
             results.append({
-                "question": qa_pair["question"],
                 "document_name": chunk_info["document_name"],
+                "file_path": chunk_info["file_path"],
+                "question": qa_pair["question"],
+                "answer": qa_pair["answer"],
                 "chunk": chunk_info["text"]
             })
         else:

@@ -13,8 +13,8 @@ from smallevals.utils.logger import logger
 
 
 # Model configuration
-HF_REPO_ID_GGUF = "mburaksayici/golden_generate_qwen_0.6b_v2_gguf"
-HF_REPO_ID_HF = "mburaksayici/golden_generate_qwen_0.6b_v2"
+HF_REPO_ID_GGUF = "mburaksayici/golden_generate_qwen_0.6b_v3_gguf"
+HF_REPO_ID_HF = "mburaksayici/golden_generate_qwen_0.6b_v3"
 
 
 class ModelVariant(Enum):

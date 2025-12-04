@@ -206,14 +206,14 @@ def create_results_dataframe(
                     break
         
         rows.append({
-            "chunk": passage,
-            "chunk_id": chunk_id,  # VDB's ID (keeping column name for compatibility)
-            "question": question,
-            "answer": answer,
-            "retrieved_docs": retrieved_docs,
+            "chunk_id": chunk_id,  
+            "chunk_position": chunk_position,# Position of original chunk in retrieved results (1-indexed, None if not found)
             "retrieved_ids": retrieved_ids,
             "num_retrieved": len(retrieved_docs),
-            "chunk_position": chunk_position  # Position of original chunk in retrieved results (1-indexed, None if not found)
+            "question": question,
+            "answer": answer,
+            "chunk": passage,
+            "retrieved_docs": retrieved_docs,
         })
     
     # Create DataFrame
