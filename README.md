@@ -62,6 +62,190 @@ smallevals dash --host 0.0.0.0 --port 8050 --debug
 ![smallevals demo](logo/demo.gif)
 
 
+
+<details>
+<summary><strong>ChromaDB</strong></summary>
+
+```python
+from sentence_transformers import SentenceTransformer
+import chromadb
+from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
+
+embedding = SentenceTransformer("intfloat/e5-small-v2")
+
+# Connect to your existing ChromaDB (already populated with chunks)
+client = chromadb.PersistentClient(path="path/to/chroma")
+
+vdb = SmallEvalsVDBConnection(
+    connection=client,
+    collection="your_collection_name",
+    embedding=embedding,
+)
+
+result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200)
+```
+
+</details>
+
+<details>
+<summary><strong>Elasticsearch</strong></summary>
+
+```python
+from sentence_transformers import SentenceTransformer
+from elasticsearch import Elasticsearch
+from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
+
+embedding = SentenceTransformer("intfloat/e5-small-v2")
+
+# Elasticsearch should already have an index with your chunks + dense_vector field
+es = Elasticsearch("http://localhost:9200", verify_certs=False)
+
+vdb = SmallEvalsVDBConnection(
+    connection=es,
+    collection="your_index_name",
+    embedding=embedding,
+)
+
+result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200)
+```
+
+</details>
+
+<details>
+<summary><strong>Milvus</strong></summary>
+
+```python
+from sentence_transformers import SentenceTransformer
+from pymilvus import connections, Collection
+from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
+
+embedding = SentenceTransformer("intfloat/e5-small-v2")
+
+# Connect to an existing Milvus instance and collection
+connections.connect(alias="default", host="localhost", port="19530")
+collection = Collection("your_collection_name", using="default")
+
+vdb = SmallEvalsVDBConnection(
+    connection=collection,
+    collection="your_collection_name",
+    embedding=embedding,
+)
+
+result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200)
+```
+
+</details>
+
+<details>
+<summary><strong>pgvector (PostgreSQL)</strong></summary>
+
+```python
+from sentence_transformers import SentenceTransformer
+from sqlalchemy import create_engine
+from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
+
+embedding = SentenceTransformer("intfloat/e5-small-v2")
+
+# PostgreSQL must have the pgvector extension enabled and a table with a vector(...) column
+engine = create_engine("postgresql://user:password@localhost:5432/dbname")
+
+vdb = SmallEvalsVDBConnection(
+    connection=engine,           # or a psycopg2 connection
+    collection="your_table_name",
+    embedding=embedding,
+)
+
+result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200)
+```
+
+</details>
+
+<details>
+<summary><strong>Qdrant</strong></summary>
+
+```python
+from sentence_transformers import SentenceTransformer
+from qdrant_client import QdrantClient
+from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
+
+embedding = SentenceTransformer("intfloat/e5-small-v2")
+
+client = QdrantClient(host="localhost", port=6333)
+
+vdb = SmallEvalsVDBConnection(
+    connection=client,
+    collection="your_collection_name",
+    embedding=embedding,
+)
+
+result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200)
+```
+
+</details>
+
+<details>
+<summary><strong>Weaviate</strong></summary>
+
+```python
+from sentence_transformers import SentenceTransformer
+import weaviate
+from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
+
+embedding = SentenceTransformer("intfloat/e5-small-v2")
+
+client = weaviate.connect_to_custom(
+    http_host="localhost",
+    http_port=8080,
+    http_secure=False,
+    grpc_host="localhost",
+    grpc_port=50051,
+    grpc_secure=False,
+)
+
+vdb = SmallEvalsVDBConnection(
+    connection=client,
+    collection="your_collection_name",
+    embedding=embedding,
+)
+
+result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200)
+```
+
+</details>
+
+<details>
+<summary><strong>FAISS (in-memory)</strong></summary>
+
+```python
+from sentence_transformers import SentenceTransformer
+from smallevals import SmallEvalsVDBConnection, evaluate_retrievals
+from smallevals.vdb_integrations.faiss_con import FaissConnection
+
+embedding = SentenceTransformer("intfloat/e5-small-v2")
+embedding_dim = embedding.get_sentence_embedding_dimension()
+
+# Create a FAISS-backed connection and populate it with your vectors
+faiss_conn = FaissConnection(
+    embedding_model=embedding,
+    dimension=embedding_dim,
+    index_type="Flat",
+    metric="L2",
+)
+
+# Populate faiss_conn with your vectors and metadata (see tests/test_faiss.py for a full example)
+
+vdb = SmallEvalsVDBConnection(
+    connection=faiss_conn,
+    collection=None,  # FAISS has no collection name
+    embedding=embedding,
+)
+
+result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200)
+```
+
+</details>
+
+
 ### Generate QA from Documents (CLI)
 
 ```bash
