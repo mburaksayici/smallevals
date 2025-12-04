@@ -394,7 +394,7 @@ def evaluate_retrievals(
     print(f"  Recall@{top_k}: {aggregated.get(f'recall@{top_k}', 0):.4f}")
     print(f"  MRR: {aggregated.get('mrr', 0):.4f}")
     print("\n" + "=" * 60)
-    print("Run 'uv run python -m smallevals.ui_dash.app' to see results.")
+    print("Run 'uv run smallevals_dash or python -m smallevals_dash' to see results.")
     print("=" * 60 + "\n")
     
     # Return comprehensive result dictionary

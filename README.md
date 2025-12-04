@@ -1,8 +1,11 @@
 # smallevals <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> - Small Language Models Evaluation Suite for RAG Systems
 
-A lightweight evaluation framework powered by tiny ( really tiny <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> ) 0.6B models — runs 100% locally on CPU/GPU/MPS, extremely fast and cheap.
+A lightweight evaluation framework powered by tiny ( really tiny <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> ) 0.6B models — runs 100% locally on CPU/GPU/MPS, attach any vector DB connection and run, fast and free.
 
-Evaluation tools requiring LLM-as-a-judge, that costs/doesn't scale easily. <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> evaluates in seconds in GPU, in minutes in any CPU  <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32">!
+![smallevals demo](logo/demo.gif)
+
+Evaluation tools requiring LLM-as-a-judge or external, that costs/doesn't scale easily. <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> evaluates in seconds in GPU, in minutes in any CPU  <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32">!
+
 
 ## Evaluate Retrieval
 
@@ -12,12 +15,22 @@ Evaluation of RAG system includes retrieval and RAG stage, <img src="logo/smalle
 
 | Model Name | Task | Status | Link |
 |------------|-------|--------|------|
-| **QAG-0.6B** | Generate golden Q/A from chunks (synthetic evaluation data) | Available | [🤗](mburaksayici/golden_generate_qwen_0.6b_v2_gguf) |
+| **QAG-0.6B** | Generate golden Q/A from chunks or docs (synthetic evaluation data) | Available | [🤗](https://huggingface.co/mburaksayici/golden_generate_qwen_0.6b_v3) |
 | **CRC-0.6B** | Context relevance classifier (question ↔ retrieved chunk) | Incoming | — |
 | **GJ-0.6B** | Groundedness / faithfulness judge (answer ↔ context) | Incoming | — |
 | **ASM-0.6B** | Answer correctness / semantic similarity | Incoming | — |
 
-**Current Focus**: Retrieval evaluation (QAG-0.5B). Generation evaluation models (CRC-0.5B, GJ-0.5B, ASM-0.5B) are future work.
+**Current Focus**: Retrieval evaluation (QAG-0.6B), after being sure the model generates correct answers and better questions for RAG(it does, but still room for improvement), the model will be the first model of pipeline leading to  (RAG) generation evaluation models (CRC-0.6B, GJ-0.6B, ASM-0.5B) which are the future work.
+
+
+### How does it work? 
+Question Generator model, reads your chunk, assumes the chunk is the one that answers the question, and tries to match it back via Vector DB query. 
+
+This allows directly to test your retrieval pipelines tied to your RAG systems. Whatever the complexity of your RAG system, you'll be sure if your vector queries works fine.
+
+### Why this is a need? 
+Other frameworks requiring APIs are costly, hard-to-scale, although they are better(for now). 
+
 
 ## Installation
 
@@ -47,10 +60,14 @@ result = evaluate_retrievals(connection=vdb, top_k=10, n_chunks=200) # Generate
 ```
 And evaluate results!
 
+```bash
+smallevals dash --host 0.0.0.0 --port 8050 --debug
+```
+
 ### Generate QA from Documents (CLI)
 
 ```bash
-smallevals --docs-dir ./documents --num-questions 100
+smallevals generate_qa --docs-dir ./documents --num-questions 100
 ```
 
 

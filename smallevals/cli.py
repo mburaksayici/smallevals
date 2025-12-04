@@ -1,10 +1,15 @@
-"""Command-line interface for SmallEval - Question Generation from Documents."""
+"""Command-line interface for smallevals.
+
+Provides:
+- ``generate_qa``: generate questions from documents.
+- ``dash``: launch the Dash UI for exploring evaluation results.
+"""
 
 import argparse
 import sys
-from pathlib import Path
 
 from smallevals.generation import generate_questions_from_docs
+from smallevals.ui_dash.app import run_dash
 from smallevals.utils.logger import logger
 
 
@@ -39,82 +44,119 @@ def generate_questions_command(args):
         return 1
 
 
+def dash_command(args):
+    """CLI command for running the Dash UI."""
+    logger.info("Starting smallevals Dash UI...")
+    logger.info(f"Host: {args.host}, Port: {args.port}, Debug: {args.debug}")
+    run_dash(host=args.host, port=args.port, debug=args.debug)
+    return 0
+
+
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="SmallEval - Generate questions from documents using QAG-0.5B model",
+        description="smallevals - Small Language Models Evaluation Suite for RAG Systems",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Generate 100 questions from documents
-  smallevals --docs-dir ./documents
+  smallevals generate_qa --docs-dir ./documents
 
   # Generate 1 question per document
-  smallevals --docs-dir ./documents --num-questions -1
+  smallevals generate_qa --docs-dir ./documents --num-questions -1
 
   # Generate 3 questions per document
-  smallevals --docs-dir ./documents --questions-per-doc 3
+  smallevals generate_qa --docs-dir ./documents --questions-per-doc 3
 
   # Specify custom output directory and chunk size
-  smallevals --docs-dir ./documents --output-dir ./my_questions --min-max-chunks 1000 1500
+  smallevals generate_qa --docs-dir ./documents --output-dir ./my_questions --min-max-chunks 1000 1500
+
+  # Run the Dash UI
+  smallevals dash --host 0.0.0.0 --port 8050 --debug
         """
     )
-    
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # generate_qa subcommand
+    generate_parser = subparsers.add_parser(
+        "generate_qa",
+        help="Generate QA from documents using the QAG-0.6B model",
+    )
+    generate_parser.add_argument(
         "--docs-dir",
         type=str,
         required=True,
-        help="Path to directory containing documents"
+        help="Path to directory containing documents",
     )
-    
-    parser.add_argument(
+    generate_parser.add_argument(
         "--num-questions",
         type=int,
         default=100,
-        help="Number of questions to generate (default: 100, use -1 for 1 per document)"
+        help="Number of questions to generate (default: 100, use -1 for 1 per document)",
     )
-    
-    parser.add_argument(
+    generate_parser.add_argument(
         "--questions-per-doc",
         type=int,
         default=None,
-        help="Alternative to --num-questions: specify number of questions per document"
+        help="Alternative to --num-questions: specify number of questions per document",
     )
-    
-    parser.add_argument(
+    generate_parser.add_argument(
         "--output-dir",
         type=str,
         default="smallevals_questions",
-        help="Output directory for CSV files (default: smallevals_questions)"
+        help="Output directory for CSV files (default: smallevals_questions)",
     )
-    
-    parser.add_argument(
+    generate_parser.add_argument(
         "--device",
         type=str,
         choices=["cuda", "cpu", "mps"],
         default=None,
-        help="Device to use for model inference (default: auto-detect)"
+        help="Device to use for model inference (default: auto-detect)",
     )
-    
-    parser.add_argument(
+    generate_parser.add_argument(
         "--batch-size",
         type=int,
         default=8,
-        help="Batch size for question generation (default: 8)"
+        help="Batch size for question generation (default: 8)",
     )
-    
-    parser.add_argument(
+    generate_parser.add_argument(
         "--min-max-chunks",
         type=int,
         nargs=2,
         default=[800, 1200],
         metavar=("MIN", "MAX"),
-        help="Minimum and maximum chunk size in characters (default: 800 1200)"
+        help="Minimum and maximum chunk size in characters (default: 800 1200)",
     )
-    
+    generate_parser.set_defaults(func=generate_questions_command)
+
+    # dash subcommand
+    dash_parser = subparsers.add_parser(
+        "dash",
+        help="Launch the smallevals Dash UI",
+    )
+    dash_parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host address to bind (default: 0.0.0.0)",
+    )
+    dash_parser.add_argument(
+        "--port",
+        type=int,
+        default=8050,
+        help="Port number (default: 8050)",
+    )
+    dash_parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Run Dash in debug mode",
+    )
+    dash_parser.set_defaults(func=dash_command)
+
     args = parser.parse_args()
-    
-    return generate_questions_command(args)
+
+    # Dispatch to the chosen subcommand
+    return args.func(args)
 
 
 if __name__ == "__main__":

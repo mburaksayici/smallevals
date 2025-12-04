@@ -166,9 +166,22 @@ from smallevals.ui_dash.callbacks import register_callbacks
 register_callbacks(app)
 
 
+def run_dash(host: str = "0.0.0.0", port: int = 8050, debug: bool = False) -> None:
+    """Run the Dash application with the given host/port/debug settings."""
+    app.run(host=host, port=port, debug=debug)
+
+
 def main():
     """Main entry point for the Dash application."""
-    app.run(debug=True, host='127.0.0.1', port=8050)
+    import argparse
+
+    parser = argparse.ArgumentParser(description="smallevals Dash UI")
+    parser.add_argument("--host", type=str, default="0.0.0.0", help="Host address to bind")
+    parser.add_argument("--port", type=int, default=8050, help="Port number")
+    parser.add_argument("--debug", action="store_true", help="Run Dash in debug mode")
+
+    args = parser.parse_args()
+    run_dash(host=args.host, port=args.port, debug=args.debug)
 
 
 if __name__ == "__main__":

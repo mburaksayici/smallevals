@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Union
 from tqdm import tqdm
 import pandas as pd
 import os
+import nltk
 
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -16,6 +17,88 @@ from smallevals.models import GoldenGenerator
 from smallevals.utils.json_parser import parse_json_response
 from smallevals.exceptions import ValidationError, QAGenerationError
 from smallevals.utils.logger import logger
+
+
+def _ensure_nltk_data():
+    """Ensure required NLTK data is available."""
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        logger.info("Downloading NLTK punkt tokenizer...")
+        nltk.download('punkt', quiet=True)
+    
+    try:
+        nltk.data.find('tokenizers/punkt_tab')
+    except LookupError:
+        logger.info("Downloading NLTK punkt_tab tokenizer...")
+        nltk.download('punkt_tab', quiet=True)
+
+
+def _extract_sentence_aware_chunk(
+    content: str,
+    start_pos: int,
+    min_chunk_size: int,
+    max_chunk_size: int
+) -> str:
+    """
+    Extract a chunk that respects sentence boundaries when possible.
+    
+    Args:
+        content: Full text content
+        start_pos: Starting position in content
+        min_chunk_size: Minimum desired chunk size
+        max_chunk_size: Maximum desired chunk size
+        
+    Returns:
+        Extracted chunk text
+    """
+    # Calculate available content from start position
+    remaining_content = content[start_pos:]
+    available_length = len(remaining_content)
+    
+    # Edge case: if remaining content is less than min_chunk_size, just return it all
+    if available_length <= min_chunk_size:
+        return remaining_content.strip()
+    
+    # Determine target chunk size (random between min and max, but not exceeding available)
+    target_size = random.randint(min_chunk_size, min(max_chunk_size, available_length))
+    
+    # Extract initial chunk
+    raw_chunk = remaining_content[:target_size]
+    
+    try:
+        # Find first period and trim before it to start at sentence boundary
+        first_period = raw_chunk.find('.')
+        if first_period > 0 and first_period < len(raw_chunk) * 0.3:  # Only trim if period is in first 30%
+            raw_chunk = raw_chunk[first_period + 1:].lstrip()
+        
+        # Edge case: if after trimming we have very little content, skip sentence processing
+        if len(raw_chunk) < min_chunk_size * 0.5:
+            return remaining_content[:target_size].strip()
+        
+        # Use NLTK to split into sentences
+        sentences = nltk.sent_tokenize(raw_chunk)
+        
+        # Rebuild chunk from complete sentences
+        chunk_text = ""
+        for sentence in sentences:
+            potential_chunk = chunk_text + " " + sentence if chunk_text else sentence
+            if len(potential_chunk) <= max_chunk_size:
+                chunk_text = potential_chunk
+            else:
+                break
+        
+        # Ensure we have reasonable content
+        if len(chunk_text) < min_chunk_size * 0.6:
+            # Fall back to original chunk if sentence-aware version is too short
+            return raw_chunk.strip()
+        
+        return chunk_text.strip()
+            
+    except Exception as e:
+        # Fall back to non-semantic direct cut on any error
+        logger.debug(f"Sentence tokenization failed, using direct cut: {e}")
+        return raw_chunk.strip()
 
 
 class QAGenerator:
@@ -235,7 +318,7 @@ def generate_questions_from_docs(
                 for filename in files:
                     file_path = Path(root) / filename
                     # Try to verify it's a readable document by checking extension
-                    if file_path.suffix.lower() in ['.pdf', '.docx', '.txt', '.md', '.doc', '.pptx', '.html']:
+                    if file_path.suffix.lower() in ['.pdf', '.docx', '.txt', '.md', '.doc', '.pptx', '.html', ".md"]:
                         text_files.append(file_path)
             
             if not text_files:
@@ -297,6 +380,9 @@ def generate_questions_from_docs(
             selected_files = random.sample(text_files, num_questions)
             file_question_map = {str(f): 1 for f in selected_files}
     
+    # Ensure NLTK data is available
+    _ensure_nltk_data()
+    
     # Initialize QA generator
     logger.info("Initializing QA generator...")
     qa_generator = QAGenerator(device=device, batch_size=batch_size)
@@ -343,35 +429,21 @@ def generate_questions_from_docs(
             else:
                 start_pos = random.randint(0, max_start)
             
-            # Determine chunk size
-            remaining_chars = len(content) - start_pos
-            chunk_size = random.randint(
-                min_chunk_size,
-                min(max_chunk_size, remaining_chars)
+            # Extract chunk using sentence-aware logic
+            chunk_text = _extract_sentence_aware_chunk(
+                content=content,
+                start_pos=start_pos,
+                min_chunk_size=min_chunk_size,
+                max_chunk_size=max_chunk_size
             )
             
-            # Extract chunk, respecting word boundaries
-            chunk_text = content[start_pos:start_pos + chunk_size]
-            
-            # Try to extend to word boundary if we cut in the middle
-            if start_pos + chunk_size < len(content):
-                next_space = chunk_text.rfind(' ')
-                next_newline = chunk_text.rfind('\n')
-                boundary = max(next_space, next_newline)
-                if boundary > chunk_size * 0.8:
-                    chunk_text = chunk_text[:boundary + 1]
-            
-            # Try to start at word boundary if we didn't start at beginning
-            if start_pos > 0:
-                prev_space = content[:start_pos].rfind(' ')
-                prev_newline = content[:start_pos].rfind('\n')
-                boundary = max(prev_space, prev_newline)
-                if boundary > start_pos - 100:
-                    actual_start = boundary + 1
-                    chunk_text = content[actual_start:actual_start + len(chunk_text)]
+            # Skip empty chunks
+            if not chunk_text:
+                logger.warning(f"Skipping empty chunk from {file_path.name}")
+                continue
             
             chunks_to_process.append({
-                "text": chunk_text.strip(),
+                "text": chunk_text,
                 "document_name": file_path.name,
                 "file_path": file_path_str
             })

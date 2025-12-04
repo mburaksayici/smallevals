@@ -2,9 +2,20 @@
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+# -----------------------------------------------------
+# uv CONFIG: Apple Silicon ONLY on macOS
+# -----------------------------------------------------
+[tool.uv]
+required-environments = [
+  "sys_platform == 'darwin' and platform_machine == 'arm64'"
+]
+
+# -----------------------------------------------------
+# PROJECT METADATA
+# -----------------------------------------------------
 [project]
 name = "smallevals"
-version = "0.1.3"
+version = "0.1.7"
 description = "Small Language Models Evaluation Suite for RAG Systems"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -24,6 +35,10 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
+
+# -----------------------------------------------------
+# DEPENDENCIES
+# -----------------------------------------------------
 dependencies = [
     # --- Core (all OS) ---
     "openai>=2.8.1",
@@ -32,22 +47,26 @@ dependencies = [
     "sentence-transformers>=5.1.2",
     "pandas>=2.0.0",
     "peft>=0.18.0",
-    "langchain-community>=0.4.1",
-    "docling>=1.0.0",
+    "docling>=2.60.0",
+    "nltk>=3.8",
+
+    # --- NumPy ABI safety ---
+    # Torch + Faiss safe window on macOS/Linux
+    "numpy>=2,<2.3",
+
     # --- WINDOWS: HuggingFace + Torch ---
     "transformers>=4.30.0; sys_platform == 'win32'",
     "hf-transfer>=0.1.9; sys_platform == 'win32'",
     "torch>=2.0.0; sys_platform == 'win32'",
-    # --- macOS / Linux: GGUF primary + HF fallback ---
-    # GGUF (llama.cpp)
+
+    # --- macOS / Linux: GGUF primary ---
     "llama-cpp-python>=0.3.16; sys_platform == 'darwin' or sys_platform == 'linux'",
-    # HF fallback support when GGUF fails
-    # "transformers>=4.30.0; sys_platform == 'darwin' or sys_platform == 'linux'",
-    # "torch>=2.0.0; sys_platform == 'darwin' or sys_platform == 'linux'",
+
     # --- UI/Dashboard ---
     "plotly>=5.0.0",
     "dash>=2.14.0",
     "dash-bootstrap-components>=1.5.0",
+
     # --- Vector DBs ---
     "chromadb>=1.3.5",
     "weaviate-client>=4.18.1",
@@ -63,14 +82,19 @@ dependencies = [
     "turbopuffer>=0.1.0",
 ]
 
+# -----------------------------------------------------
+# URLS
+# -----------------------------------------------------
 [project.urls]
 Homepage = "https://github.com/mburaksayici/smallevals"
 Repository = "https://github.com/mburaksayici/smallevals"
 Issues = "https://github.com/mburaksayici/smallevals/issues"
 Documentation = "https://github.com/mburaksayici/smallevals#readme"
 
+# -----------------------------------------------------
+# OPTIONAL DEPENDENCIES
+# -----------------------------------------------------
 [project.optional-dependencies]
-# Testing only
 test = [
     "pytest>=9.0.1",
     "pytest-cov>=4.0.0",
@@ -78,6 +102,9 @@ test = [
     "pyarrow>=10.0.0",
 ]
 
+# -----------------------------------------------------
+# PACKAGING
+# -----------------------------------------------------
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["smallevals*"]
@@ -86,6 +113,9 @@ exclude = ["tests*", "notebooks*", "output*", "chromadb*", "versions*", "smallev
 [tool.setuptools.package-data]
 smallevals = ["logo/*.png"]
 
+# -----------------------------------------------------
+# PYTEST
+# -----------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
@@ -97,10 +127,13 @@ addopts = [
     "--tb=short",
 ]
 markers = [
-    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
 
+# -----------------------------------------------------
+# COVERAGE
+# -----------------------------------------------------
 [tool.coverage.run]
 source = ["smallevals"]
 omit = [
@@ -114,10 +147,13 @@ exclude_lines = [
     "def __repr__",
     "raise AssertionError",
     "raise NotImplementedError",
-    "if __name__ == .__main__.:",
+    "if __name__ == '__main__':",
     "if TYPE_CHECKING:",
 ]
 
+# -----------------------------------------------------
+# ENTRYPOINTS
+# -----------------------------------------------------
 [project.scripts]
 smallevals = "smallevals.cli:main"
-dash = "smallevals.ui_dash.app:main"
+smallevals_dash = "smallevals.ui_dash.app:main"

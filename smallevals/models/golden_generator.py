@@ -208,7 +208,7 @@ class GoldenGenerator:
         backend: Optional[str] = None,
         device: Optional[str] = None,
         batch_size: int = 8,
-        n_ctx: int = 32768,
+        n_ctx: int = 2350,
         n_gpu_layers: Optional[int] = None,
     ):
         """
