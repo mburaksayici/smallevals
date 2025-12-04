@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo/smallevals_emoji_512_512.png" alt="smallevals cat logo" width="220">
+</p>
+
 # smallevals <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> - Small Language Models Evaluation Suite for RAG Systems
 
 A lightweight evaluation framework powered by tiny ( really tiny <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> ) 0.6B models — runs 100% locally on CPU/GPU/MPS, attach any vector DB connection and run, fast and free.
@@ -65,7 +69,7 @@ smallevals generate_qa --docs-dir ./documents --num-questions 100
 ```
 
 
-### **QAG-0.6B**
+### **QAG-0.6B**
 
 The model was trained on TriviaQA, SQuAD 2.0, Hand-curated synthetic data generated using Qwen-70B , generating a question from the chunk/doc. 
 
@@ -97,12 +101,12 @@ This allows directly to test your retrieval pipelines tied to your RAG systems. 
 Other frameworks requiring APIs are costly, hard-to-scale, although they are better(for now). 
 
 
-####Known issues: 
+#### Known issues: 
 - Model is trained on text/wiki data, bias towards well structured text.
 - Dataset contains question that ask generic questions, dataset will be more carefully crafted in v3. 
 - Some questions may be generic for the first version, leading a small decrease on the scores. 25$ led me to have this model. Let's see what I can do with more!
   
-### Other Models:
+### Other Models:
 
 Other models to be trained to eliminate the need of external LLMs. 
 
