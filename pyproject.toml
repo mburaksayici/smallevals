@@ -15,7 +15,7 @@ required-environments = [
 # -----------------------------------------------------
 [project]
 name = "smallevals"
-version = "0.1.7"
+version = "0.1.8"
 description = "Small Language Models Evaluation Suite for RAG Systems"
 readme = "README.md"
 requires-python = ">=3.10"
