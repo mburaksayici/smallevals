@@ -2,7 +2,7 @@
   <img src="logo/smallevals_emoji_512_512.png" alt="smallevals cat logo" width="220">
 </p>
 
-# smallevals <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> - Small Language Models Evaluation Suite for RAG Systems
+# smallevals <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> -  Local LLM Evaluation Framework with Tiny 0.6B Models
 
 A lightweight evaluation framework powered by tiny ( really tiny <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> ) 0.6B models — runs 100% locally on CPU/GPU/MPS, attach any vector DB connection and run, fast and free.
 
