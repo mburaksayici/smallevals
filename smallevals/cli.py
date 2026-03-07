@@ -10,6 +10,7 @@ import sys
 
 from smallevals.generation import generate_questions_from_docs
 from smallevals.ui_dash.app import run_dash
+from smallevals.ir_eval.cli import add_subcommand as add_ir_eval_subcommand
 from smallevals.utils.logger import logger
 
 
@@ -128,6 +129,9 @@ Examples:
         help="Minimum and maximum chunk size in characters (default: 800 1200)",
     )
     generate_parser.set_defaults(func=generate_questions_command)
+
+    # eval_ir subcommand (standard qrels/run evaluation)
+    add_ir_eval_subcommand(subparsers)
 
     # dash subcommand
     dash_parser = subparsers.add_parser(

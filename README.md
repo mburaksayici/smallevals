@@ -12,6 +12,24 @@ Evaluation tools requiring LLM-as-a-judge or external, that costs/doesn't scale 
 
 ## Evaluate Retrieval
 
+### Standard IR evaluation (queries + qrels + metrics)
+
+`smallevals` primarily evaluates retrieval *inside* a RAG system (generate a question from a chunk and see if the system retrieves the source chunk).
+
+If you want classic IR evaluation with explicit **queries + qrels** and standard metrics, you can run a lexical BM25 baseline via Pyserini:
+
+```bash
+pip install "smallevals[ir_eval]"
+
+smallevals eval_ir --corpus corpus.json --queries queries.json --qrels qrels.txt --retriever pyserini-bm25 --top-k 10
+```
+
+Input formats:
+- `corpus.json`: `{ "doc_id": {"title": "...", "text": "..."}, ... }`
+- `queries.json`: `{ "qid": "query text", ... }`
+- `qrels.txt`: TREC qrels format: `qid 0 docid rel`
+
+
 Evaluation of RAG system includes retrieval and RAG stage, <img src="logo/smallevals_emoji_32_32.png" alt="logo" width="32" height="32"> attacks to test retrieval and RAG answers(in the near future)!
 
 ## Models
