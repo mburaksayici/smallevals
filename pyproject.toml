@@ -102,6 +102,12 @@ test = [
     "pyarrow>=10.0.0",
 ]
 
+# Standard IR evaluation (qrels/run + metrics)
+ir_eval = [
+    "pyserini>=0.24.0",
+    "pytrec-eval>=0.5",
+]
+
 # -----------------------------------------------------
 # PACKAGING
 # -----------------------------------------------------
